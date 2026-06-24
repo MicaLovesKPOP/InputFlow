@@ -199,10 +199,7 @@ namespace InputFlow.App
                 // FileSystemWatcher may raise events multiple times.  Debounce by
                 // invoking reload on the UI thread after a small delay.
                 // Use BeginInvoke to ensure we are on the correct thread.
-                if (_notifyIcon != null)
-                {
-                    _notifyIcon.BeginInvoke(new MethodInvoker(() => ReloadConfig()));
-                }
+                ReloadConfig();
             }
 
             /// <summary>
@@ -251,7 +248,8 @@ namespace InputFlow.App
                     }
                     _registeredHotkeys[id] = (mods, vk);
                     // Inform manager of this hotkey's state.
-                    _manager.RegisterHotkey(id, target, fallback, hk.ReturnBehavior ?? "lastNonTarget");
+                    var targetDefinition = _config.Profiles.FirstOrDefault(p => string.Equals(p.Id, hk.Target, StringComparison.OrdinalIgnoreCase));
+                    _manager.RegisterHotkey(id, target, fallback, hk.ReturnBehavior ?? "lastNonTarget", targetDefinition?.EnterMode);
                     _logger.Info($"Registered hotkey '{hk.Keys}' for target '{hk.Target}'.");
                 }
             }

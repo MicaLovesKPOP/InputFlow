@@ -131,7 +131,7 @@ namespace InputFlow.Core
                     try
                     {
                         // Derive culture name from LANGID.  CultureName might be like "en-US".
-                        var culture = new CultureInfo(profile.LangId);
+                        var culture = new CultureInfo((int)profile.LangId);
                         if (!string.Equals(culture.Name, m.LanguageTag, StringComparison.OrdinalIgnoreCase))
                         {
                             match = false;

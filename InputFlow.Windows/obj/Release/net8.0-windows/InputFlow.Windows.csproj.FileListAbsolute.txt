@@ -1,0 +1,12 @@
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\bin\Release\net8.0-windows\InputFlow.Windows.deps.json
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\bin\Release\net8.0-windows\InputFlow.Windows.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\bin\Release\net8.0-windows\InputFlow.Windows.pdb
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.GeneratedMSBuildEditorConfig.editorconfig
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.AssemblyInfoInputs.cache
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.AssemblyInfo.cs
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.csproj.CoreCompileInputs.cache
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.sourcelink.json
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\refint\InputFlow.Windows.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\InputFlow.Windows.pdb
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Windows\obj\Release\net8.0-windows\ref\InputFlow.Windows.dll

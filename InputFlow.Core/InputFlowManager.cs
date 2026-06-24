@@ -43,13 +43,14 @@ namespace InputFlow.Core
         /// identifier used when registering the hotkey with Windows.  The specified
         /// <paramref name="state"/> must contain a valid target profile; fallback may be null.
         /// </summary>
-        public void RegisterHotkey(int id, InputProfile target, InputProfile? fallback, string returnBehavior)
+        public void RegisterHotkey(int id, InputProfile target, InputProfile? fallback, string returnBehavior, string? enterMode = null)
         {
             _hotkeyStates[id] = new HotkeyState
             {
                 Target = target,
                 Fallback = fallback,
-                ReturnBehavior = ParseReturnBehavior(returnBehavior)
+                ReturnBehavior = ParseReturnBehavior(returnBehavior),
+                EnterMode = enterMode
             };
         }
 
@@ -122,6 +123,7 @@ namespace InputFlow.Core
                 bool success = SwitchTo(state.Target);
                 if (success)
                 {
+                    ApplyEnterModeIfNeeded(state);
                     _logger.Info($"Switched to target {state.Target.FriendlyName}");
                 }
                 else
@@ -165,35 +167,64 @@ namespace InputFlow.Core
         {
             try
             {
-                // Load the layout if not already loaded; returns a handle.
-                IntPtr newHKL = InputApis.LoadKeyboardLayout(profile.KLID, 0);
-                // Activate the layout for the current thread.
-                IntPtr result = InputApis.ActivateKeyboardLayout(newHKL, 0);
-                // Optionally set as system default.  Some users prefer not to
-                // change the default layout; design document suggests we
-                // broadcast the change via SystemParametersInfo to encourage
-                // system-wide adoption.  Note: This might require admin
-                // privileges in some contexts.  We trap exceptions and ignore.
-                try
+                IntPtr foregroundWindow = InputApis.GetForegroundWindow();
+
+                // Important: use the exact HKL that Windows already reported as installed.
+                // Calling LoadKeyboardLayout with only a KLID can cause Windows to load/activate
+                // a different language/layout pair, such as plain English (United States) / US.
+                IntPtr hkl = profile.HKL;
+
+                _logger.Info($"Switch request: {profile.FriendlyName} KLID={profile.KLID} HKL=0x{profile.HKL.ToInt64():X8}");
+
+                if (hkl == IntPtr.Zero)
                 {
-                    var handle = System.Runtime.InteropServices.GCHandle.Alloc(profile.LangId, System.Runtime.InteropServices.GCHandleType.Pinned);
-                    try
-                    {
-                        InputApis.SystemParametersInfo(InputApis.SPI_SETDEFAULTINPUTLANG, 0, handle.AddrOfPinnedObject(), InputApis.SPIF_SENDWININICHANGE);
-                    }
-                    finally
-                    {
-                        handle.Free();
-                    }
-                }
-                catch
-                {
-                    // Non-critical; ignore failure to set default language.
+                    hkl = InputApis.LoadKeyboardLayout(profile.KLID, InputApis.KLF_ACTIVATE);
+                    _logger.Warning($"Profile HKL was zero; loaded layout by KLID {profile.KLID}, result HKL=0x{hkl.ToInt64():X8}.");
                 }
 
-                // Verify by checking the current profile.
+                if (hkl == IntPtr.Zero)
+                {
+                    _logger.Error($"Cannot switch to {profile.FriendlyName}: no valid HKL.");
+                    return false;
+                }
+
+                if (foregroundWindow != IntPtr.Zero)
+                {
+                    InputApis.PostMessage(foregroundWindow, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+                }
+
+                InputApis.ActivateKeyboardLayout(hkl, InputApis.KLF_SETFORPROCESS);
+                System.Threading.Thread.Sleep(200);
+
                 InputProfile after = GetCurrentProfile();
-                return ProfilesEqual(after, profile);
+                if (ProfilesEqual(after, profile))
+                {
+                    _logger.Info($"Switch verified: {after.FriendlyName} KLID={after.KLID} HKL=0x{after.HKL.ToInt64():X8}");
+                    return true;
+                }
+
+                // Retry once, safely.
+                if (foregroundWindow != IntPtr.Zero)
+                {
+                    InputApis.PostMessage(foregroundWindow, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+                }
+
+                InputApis.ActivateKeyboardLayout(hkl, InputApis.KLF_SETFORPROCESS);
+                System.Threading.Thread.Sleep(300);
+
+                after = GetCurrentProfile();
+                bool success = ProfilesEqual(after, profile);
+
+                if (success)
+                {
+                    _logger.Info($"Switch verified after retry: {after.FriendlyName} KLID={after.KLID} HKL=0x{after.HKL.ToInt64():X8}");
+                }
+                else
+                {
+                    _logger.Warning($"Switch verification failed. Requested {profile.FriendlyName} KLID={profile.KLID} HKL=0x{profile.HKL.ToInt64():X8}; current is {after.FriendlyName} KLID={after.KLID} HKL=0x{after.HKL.ToInt64():X8}.");
+                }
+
+                return success;
             }
             catch (Exception ex)
             {
@@ -201,11 +232,6 @@ namespace InputFlow.Core
                 return false;
             }
         }
-
-        /// <summary>
-        /// Determines the current input profile for the active thread.  If no
-        /// matching installed profile is found, returns a placeholder profile.
-        /// </summary>
         private InputProfile GetCurrentProfile()
         {
             uint threadId = InputApis.GetWindowThreadProcessId(InputApis.GetForegroundWindow(), out _);
@@ -275,12 +301,140 @@ namespace InputFlow.Core
             public InputProfile? Fallback;
             public InputProfile? PreviousNonTarget;
             public ReturnBehavior ReturnBehavior;
+            public string? EnterMode;
         }
 
-        /// <summary>
-        /// Parses the return behaviour string into an enum value.  Defaults to
-        /// LastNonTarget when unknown.
-        /// </summary>
+        private void ApplyEnterModeIfNeeded(HotkeyState state)
+        {
+            if (!string.Equals(state.EnterMode, "hangul", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            try
+            {
+                System.Threading.Thread.Sleep(120);
+
+                IntPtr foregroundWindow = InputApis.GetForegroundWindow();
+                if (foregroundWindow == IntPtr.Zero)
+                {
+                    _logger.Warning("Cannot set Hangul mode: no foreground window.");
+                    return;
+                }
+
+                uint threadId = InputApis.GetWindowThreadProcessId(foregroundWindow, out _);
+                IntPtr focusedWindow = foregroundWindow;
+
+                var gui = new InputApis.GUITHREADINFO();
+                gui.cbSize = System.Runtime.InteropServices.Marshal.SizeOf<InputApis.GUITHREADINFO>();
+
+                if (InputApis.GetGUIThreadInfo(threadId, ref gui) && gui.hwndFocus != IntPtr.Zero)
+                {
+                    focusedWindow = gui.hwndFocus;
+                }
+
+                if (TrySetHangulViaImeContext(focusedWindow))
+                {
+                    return;
+                }
+
+                if (focusedWindow != foregroundWindow && TrySetHangulViaImeContext(foregroundWindow))
+                {
+                    return;
+                }
+
+                if (TrySetHangulViaDefaultImeWindow(focusedWindow))
+                {
+                    return;
+                }
+
+                if (focusedWindow != foregroundWindow && TrySetHangulViaDefaultImeWindow(foregroundWindow))
+                {
+                    return;
+                }
+
+                _logger.Warning("Cannot set Hangul mode safely: no usable IME context or default IME window.");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Cannot set Hangul mode safely: {ex.Message}");
+            }
+        }
+
+        private bool TrySetHangulViaImeContext(IntPtr window)
+        {
+            if (window == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            IntPtr imc = InputApis.ImmGetContext(window);
+            if (imc == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!InputApis.ImmGetConversionStatus(imc, out int conversion, out int sentence))
+                {
+                    return false;
+                }
+
+                int desired = conversion | InputApis.IME_CMODE_NATIVE;
+
+                if (desired == conversion)
+                {
+                    _logger.Info($"Hangul/native conversion mode already active through IME context. Conversion={conversion}.");
+                    return true;
+                }
+
+                if (InputApis.ImmSetConversionStatus(imc, desired, sentence))
+                {
+                    _logger.Info($"Applied Hangul/native conversion mode through IME context: {conversion} -> {desired}.");
+                    return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+                InputApis.ImmReleaseContext(window, imc);
+            }
+        }
+
+        private bool TrySetHangulViaDefaultImeWindow(IntPtr ownerWindow)
+        {
+            if (ownerWindow == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            IntPtr imeWindow = InputApis.ImmGetDefaultIMEWnd(ownerWindow);
+            if (imeWindow == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            // This sets IME open/native mode explicitly. It is not a Hangul-key toggle.
+            IntPtr openBefore = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETOPENSTATUS, IntPtr.Zero);
+            IntPtr conversionBefore = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETCONVERSIONMODE, IntPtr.Zero);
+
+            int currentConversion = unchecked((int)conversionBefore.ToInt64());
+            int desiredConversion = currentConversion | InputApis.IME_CMODE_NATIVE;
+
+            InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_SETOPENSTATUS, (IntPtr)1);
+            InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_SETCONVERSIONMODE, (IntPtr)desiredConversion);
+
+            System.Threading.Thread.Sleep(60);
+
+            IntPtr openAfter = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETOPENSTATUS, IntPtr.Zero);
+            IntPtr conversionAfter = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETCONVERSIONMODE, IntPtr.Zero);
+
+            _logger.Info($"Default IME window Hangul/native set attempt. Open {openBefore.ToInt64()} -> {openAfter.ToInt64()}, conversion {currentConversion} -> {conversionAfter.ToInt64()} requested={desiredConversion}.");
+
+            return (conversionAfter.ToInt64() & InputApis.IME_CMODE_NATIVE) != 0;
+        }
         private static ReturnBehavior ParseReturnBehavior(string behavior)
         {
             if (string.IsNullOrEmpty(behavior)) return ReturnBehavior.LastNonTarget;

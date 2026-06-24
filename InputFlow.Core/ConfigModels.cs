@@ -137,7 +137,6 @@ namespace InputFlow.Core
         /// InputFlow will attempt to use the current system default instead.
         /// </summary>
         public string? Fallback { get; set; }
-;
     }
 
     /// <summary>
@@ -168,7 +167,6 @@ namespace InputFlow.Core
         /// "hangul" for Korean IME.  Not implemented in this version.
         /// </summary>
         public string? EnterMode { get; set; }
-;
     }
 
     /// <summary>
@@ -181,10 +179,7 @@ namespace InputFlow.Core
     public class ProfileMatch
     {
         public string? LanguageTag { get; set; }
-        ;
         public string? LayoutNameContains { get; set; }
-        ;
         public string? ProfileNameContains { get; set; }
-        ;
     }
 }

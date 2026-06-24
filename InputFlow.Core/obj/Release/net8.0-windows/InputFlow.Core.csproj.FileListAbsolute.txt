@@ -1,0 +1,16 @@
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\bin\Release\net8.0-windows\InputFlow.Core.deps.json
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\bin\Release\net8.0-windows\InputFlow.Core.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\bin\Release\net8.0-windows\InputFlow.Core.pdb
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\bin\Release\net8.0-windows\InputFlow.Windows.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\bin\Release\net8.0-windows\InputFlow.Windows.pdb
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.csproj.AssemblyReference.cache
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.AssemblyInfoInputs.cache
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.AssemblyInfo.cs
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.csproj.CoreCompileInputs.cache
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.sourcelink.json
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlo.3217D07E.Up2Date
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\refint\InputFlow.Core.dll
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\InputFlow.Core.pdb
+D:\Users\Mica\Downloads\InputFlow-git\InputFlow.Core\obj\Release\net8.0-windows\ref\InputFlow.Core.dll

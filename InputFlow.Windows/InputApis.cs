@@ -7,7 +7,7 @@ namespace InputFlow.Windows
     /// <summary>
     /// Exposes native Win32 APIs used for enumerating and switching keyboard layouts and input methods.
     /// </summary>
-    internal static class InputApis
+    public static class InputApis
     {
         /// <summary>
         /// Retrieves the keyboard layouts available for the system or the calling thread.
@@ -52,11 +52,74 @@ namespace InputFlow.Windows
 
         public const uint SPI_SETDEFAULTINPUTLANG = 0x005A;
         public const uint SPIF_SENDWININICHANGE = 0x02;
+        public const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+        public const uint KLF_ACTIVATE = 0x00000001;
+        public const uint KLF_SETFORPROCESS = 0x00000100;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        public const int IME_CMODE_NATIVE = 0x0001;
+        public const int IME_CMODE_FULLSHAPE = 0x0008;
+
+        [DllImport("imm32.dll")]
+        public static extern IntPtr ImmGetContext(IntPtr hWnd);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmReleaseContext(IntPtr hWnd, IntPtr hIMC);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmGetConversionStatus(IntPtr hIMC, out int conversion, out int sentence);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmSetConversionStatus(IntPtr hIMC, int conversion, int sentence);
+
+        public const uint WM_IME_CONTROL = 0x0283;
+        public const int IMC_GETCONVERSIONMODE = 0x0001;
+        public const int IMC_SETCONVERSIONMODE = 0x0002;
+        public const int IMC_GETOPENSTATUS = 0x0005;
+        public const int IMC_SETOPENSTATUS = 0x0006;
+
+        [DllImport("imm32.dll")]
+        public static extern IntPtr ImmGetDefaultIMEWnd(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+
+
 
         /// <summary>
         /// Retrieves a handle to the foreground window.
         /// </summary>
         [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct GUITHREADINFO
+        {
+            public int cbSize;
+            public int flags;
+            public IntPtr hwndActive;
+            public IntPtr hwndFocus;
+            public IntPtr hwndCapture;
+            public IntPtr hwndMenuOwner;
+            public IntPtr hwndMoveSize;
+            public IntPtr hwndCaret;
+            public RECT rcCaret;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
 
         /// <summary>
         /// Retrieves the identifier of the thread that created the specified window and the identifier of the process that created the window.
