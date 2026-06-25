@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace InputFlow.Core
@@ -13,10 +14,12 @@ namespace InputFlow.Core
     /// </summary>
     public class InputFlowConfig
     {
+        public const int CurrentVersion = 2;
+
         /// <summary>
-        /// Configuration format version. Reserved for future use.
+        /// Configuration format version.
         /// </summary>
-        public int Version { get; set; } = 1;
+        public int Version { get; set; } = CurrentVersion;
 
         /// <summary>
         /// Whether InputFlow should start automatically with Windows. The host
@@ -39,12 +42,16 @@ namespace InputFlow.Core
         public string LogLevel { get; set; } = "Info";
 
         /// <summary>
-        /// A list of hotkey definitions. Each hotkey binds a key combination to
-        /// a target profile and defines how InputFlow should behave when it is
-        /// pressed. For example, pressing F13 might toggle Korean IME using
-        /// the lastNonTarget return behaviour.
+        /// Legacy v1 hotkey definitions. These are migrated to Workflows during
+        /// loading and remain only for backwards compatibility with existing configs.
         /// </summary>
         public List<HotkeyConfig> Hotkeys { get; set; } = new();
+
+        /// <summary>
+        /// Version 2 workflow definitions. Each workflow owns its triggers and
+        /// behavior, making two-profile toggles, direct switches, and cycles explicit.
+        /// </summary>
+        public List<WorkflowConfig> Workflows { get; set; } = new();
 
         /// <summary>
         /// A list of profile definitions used to match installed input methods.
@@ -104,7 +111,7 @@ namespace InputFlow.Core
                 return InputFlowConfigLoadResult.Invalid(new InputFlowConfig(), "Config file did not contain a valid JSON object.");
             }
 
-            NormalizeCollections(config);
+            NormalizeAndMigrate(config);
 
             var errors = InputFlowConfigValidator.Validate(config);
             return errors.Count == 0
@@ -112,11 +119,35 @@ namespace InputFlow.Core
                 : InputFlowConfigLoadResult.Invalid(config, errors);
         }
 
-        private static void NormalizeCollections(InputFlowConfig config)
+        private static void NormalizeAndMigrate(InputFlowConfig config)
         {
             config.Hotkeys ??= new List<HotkeyConfig>();
+            config.Workflows ??= new List<WorkflowConfig>();
             config.Profiles ??= new List<ProfileDefinition>();
             config.ExcludedProcesses ??= new List<string>();
+
+            foreach (var workflow in config.Workflows.Where(w => w != null))
+            {
+                workflow.Triggers ??= new List<TriggerConfig>();
+                workflow.Targets ??= new List<string>();
+            }
+
+            if (config.Workflows.Count == 0 && config.Hotkeys.Count > 0)
+            {
+                for (int i = 0; i < config.Hotkeys.Count; i++)
+                {
+                    var hotkey = config.Hotkeys[i];
+                    if (hotkey != null)
+                    {
+                        config.Workflows.Add(WorkflowConfig.FromLegacyHotkey(hotkey, i));
+                    }
+                }
+            }
+
+            if (config.Version == 1)
+            {
+                config.Version = CurrentVersion;
+            }
         }
 
         private static JsonSerializerOptions CreateJsonOptions()
@@ -160,6 +191,63 @@ namespace InputFlow.Core
         {
             return new InputFlowConfigLoadResult(config, false, errors.Count == 0 ? new[] { "Config validation failed." } : errors);
         }
+    }
+
+    /// <summary>
+    /// Represents a v2 workflow. Workflows are the runtime-facing replacement
+    /// for legacy v1 hotkeys.
+    /// </summary>
+    public class WorkflowConfig
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Mode { get; set; } = "toggle";
+        public List<TriggerConfig> Triggers { get; set; } = new();
+        public string? Target { get; set; }
+        public List<string> Targets { get; set; } = new();
+        public string ReturnBehavior { get; set; } = "lastNonTarget";
+        public string? Fallback { get; set; }
+
+        public static WorkflowConfig FromLegacyHotkey(HotkeyConfig hotkey, int index)
+        {
+            string name = string.IsNullOrWhiteSpace(hotkey.Name) ? $"Hotkey {index + 1}" : hotkey.Name.Trim();
+            return new WorkflowConfig
+            {
+                Id = CreateId(name, index),
+                Name = name,
+                Mode = string.IsNullOrWhiteSpace(hotkey.Mode) ? "toggle" : hotkey.Mode.Trim(),
+                Triggers = string.IsNullOrWhiteSpace(hotkey.Keys)
+                    ? new List<TriggerConfig>()
+                    : new List<TriggerConfig> { new TriggerConfig { Keys = hotkey.Keys.Trim() } },
+                Target = string.IsNullOrWhiteSpace(hotkey.Target) ? null : hotkey.Target.Trim(),
+                ReturnBehavior = string.IsNullOrWhiteSpace(hotkey.ReturnBehavior) ? "lastNonTarget" : hotkey.ReturnBehavior.Trim(),
+                Fallback = string.IsNullOrWhiteSpace(hotkey.Fallback) ? null : hotkey.Fallback.Trim()
+            };
+        }
+
+        private static string CreateId(string name, int index)
+        {
+            var chars = name
+                .Trim()
+                .ToLowerInvariant()
+                .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+                .ToArray();
+            string id = new string(chars).Trim('-');
+            while (id.Contains("--", StringComparison.Ordinal))
+            {
+                id = id.Replace("--", "-", StringComparison.Ordinal);
+            }
+
+            return string.IsNullOrWhiteSpace(id) ? $"workflow-{index + 1}" : id;
+        }
+    }
+
+    /// <summary>
+    /// A trigger that activates a workflow.
+    /// </summary>
+    public class TriggerConfig
+    {
+        public string Keys { get; set; } = string.Empty;
     }
 
     /// <summary>
