@@ -47,7 +47,7 @@ namespace InputFlow.App
                         new ProfileDefinition
                         {
                             Id = "us-intl",
-                            Match = new ProfileMatch { LanguageTag = "en-NL" }
+                            Match = new ProfileMatch { KLID = "00020409" }
                         },
                         new ProfileDefinition
                         {
@@ -417,6 +417,10 @@ namespace InputFlow.App
                 if (!string.IsNullOrWhiteSpace(match.LanguageTag))
                 {
                     parts.Add($"LanguageTag={match.LanguageTag}");
+                }
+                if (!string.IsNullOrWhiteSpace(match.KLID))
+                {
+                    parts.Add($"KLID={match.KLID}");
                 }
                 if (!string.IsNullOrWhiteSpace(match.LayoutNameContains))
                 {

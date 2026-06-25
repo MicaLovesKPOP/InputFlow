@@ -112,6 +112,11 @@ namespace InputFlow.Core
                         break;
                     case ReturnBehavior.AlwaysSpecificLayout:
                         dest = state.Fallback;
+                        if (dest == null && state.PreviousNonTarget != null)
+                        {
+                            dest = state.PreviousNonTarget;
+                            _logger.Warning("AlwaysSpecificLayout fallback was unavailable; returning to the remembered previous non-target profile.");
+                        }
                         break;
                     case ReturnBehavior.ManualOnly:
                         // In manualOnly, we never automatically switch back. Do nothing.
