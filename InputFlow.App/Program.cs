@@ -124,7 +124,8 @@ namespace InputFlow.App
                 };
 
                 // Load config and installed profiles, then initialise manager.
-                _config = InputFlowConfig.Load(_configPath);
+                var initialLoad = InputFlowConfig.LoadDetailed(_configPath);
+                _config = initialLoad.Success ? initialLoad.Config : new InputFlowConfig();
                 _installedProfiles = InputProfileManager.EnumerateInstalledProfiles();
                 _manager = new InputFlowManager(_installedProfiles, _config.ExcludedProcesses, _logger);
                 _singleKeyHook = new SingleKeyTriggerHook(_logger, OnSingleKeyTriggerPressed);
@@ -142,6 +143,11 @@ namespace InputFlow.App
                 _notifyIcon.ContextMenuStrip = BuildContextMenu();
 
                 LogStartupDiagnostics();
+                if (!initialLoad.Success)
+                {
+                    LogConfigLoadErrors("startup", initialLoad);
+                    _logger.Warning("Startup config was invalid; running with built-in defaults until a valid config is saved or reloaded.");
+                }
 
                 // Register initial hotkeys.
                 RegisterHotkeys();
@@ -216,7 +222,15 @@ namespace InputFlow.App
                 try
                 {
                     _logger.Info($"Reloading configuration ({reason})...");
-                    var newConfig = InputFlowConfig.Load(_configPath);
+                    var loadResult = InputFlowConfig.LoadDetailed(_configPath);
+                    if (!loadResult.Success)
+                    {
+                        LogConfigLoadErrors(reason, loadResult);
+                        _logger.Warning("Configuration reload rejected; keeping the previous working configuration active.");
+                        return;
+                    }
+
+                    var newConfig = loadResult.Config;
                     var installed = InputProfileManager.EnumerateInstalledProfiles();
 
                     _config = newConfig;
@@ -236,6 +250,14 @@ namespace InputFlow.App
                 catch (Exception ex)
                 {
                     _logger.Error($"Failed to reload configuration: {ex.Message}");
+                }
+            }
+
+            private void LogConfigLoadErrors(string reason, InputFlowConfigLoadResult loadResult)
+            {
+                foreach (string error in loadResult.Errors)
+                {
+                    _logger.Error($"Config load error ({reason}): {error}");
                 }
             }
 
