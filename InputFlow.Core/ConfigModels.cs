@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 
 namespace InputFlow.Core
 {
@@ -61,28 +64,92 @@ namespace InputFlow.Core
 
         /// <summary>
         /// Loads a configuration object from a JSON file. Unknown properties
-        /// in the JSON will be ignored. If the file is missing or cannot be
-        /// parsed, a new configuration with default values is returned.
+        /// in the JSON will be ignored. If the file is missing, cannot be
+        /// parsed, or fails validation, a new configuration with default values
+        /// is returned. Use <see cref="LoadDetailed"/> when callers need to
+        /// preserve an existing runtime config after a bad reload.
         /// </summary>
         /// <param name="path">Path to the JSON configuration file.</param>
         public static InputFlowConfig Load(string path)
         {
+            var result = LoadDetailed(path);
+            return result.Success ? result.Config : new InputFlowConfig();
+        }
+
+        /// <summary>
+        /// Loads and validates a configuration file without hiding parse or
+        /// validation failures from the caller.
+        /// </summary>
+        /// <param name="path">Path to the JSON configuration file.</param>
+        public static InputFlowConfigLoadResult LoadDetailed(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return InputFlowConfigLoadResult.Valid(new InputFlowConfig());
+            }
+
+            InputFlowConfig? config;
             try
             {
-                string json = System.IO.File.ReadAllText(path);
-                var opts = new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip
-                };
-                return System.Text.Json.JsonSerializer.Deserialize<InputFlowConfig>(json, opts) ?? new InputFlowConfig();
+                string json = File.ReadAllText(path);
+                config = JsonSerializer.Deserialize<InputFlowConfig>(json, CreateJsonOptions());
             }
-            catch
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
             {
-                // Return defaults on failure.
-                return new InputFlowConfig();
+                return InputFlowConfigLoadResult.Invalid(new InputFlowConfig(), $"Could not read or parse config: {ex.Message}");
             }
+
+            if (config == null)
+            {
+                return InputFlowConfigLoadResult.Invalid(new InputFlowConfig(), "Config file did not contain a valid JSON object.");
+            }
+
+            var errors = InputFlowConfigValidator.Validate(config);
+            return errors.Count == 0
+                ? InputFlowConfigLoadResult.Valid(config)
+                : InputFlowConfigLoadResult.Invalid(config, errors);
+        }
+
+        private static JsonSerializerOptions CreateJsonOptions()
+        {
+            return new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+        }
+    }
+
+    /// <summary>
+    /// Result of loading and validating an InputFlow configuration file.
+    /// </summary>
+    public sealed class InputFlowConfigLoadResult
+    {
+        private InputFlowConfigLoadResult(InputFlowConfig config, bool success, IReadOnlyList<string> errors)
+        {
+            Config = config;
+            Success = success;
+            Errors = errors;
+        }
+
+        public InputFlowConfig Config { get; }
+        public bool Success { get; }
+        public IReadOnlyList<string> Errors { get; }
+
+        public static InputFlowConfigLoadResult Valid(InputFlowConfig config)
+        {
+            return new InputFlowConfigLoadResult(config, true, Array.Empty<string>());
+        }
+
+        public static InputFlowConfigLoadResult Invalid(InputFlowConfig config, string error)
+        {
+            return new InputFlowConfigLoadResult(config, false, new[] { error });
+        }
+
+        public static InputFlowConfigLoadResult Invalid(InputFlowConfig config, IReadOnlyList<string> errors)
+        {
+            return new InputFlowConfigLoadResult(config, false, errors.Count == 0 ? new[] { "Config validation failed." } : errors);
         }
     }
 
