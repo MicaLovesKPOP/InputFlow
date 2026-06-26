@@ -233,4 +233,37 @@ Previously observed warnings included:
 
 ```text
 CS8625: Cannot convert null literal to non-nullable reference type.
+NETSDK1137: WindowsDesktop SDK no longer necessary.
+CS0108: ExitThread hides inherited member.
 ```
+
+These may already be fixed in the latest repo state, but verify with the primary build command.
+
+## Validation After Switching-Code Changes
+
+After any change touching input switching, profile matching, hotkeys, workflows, or IME mode:
+
+1. Run the primary build command.
+2. Run the core test command.
+3. Publish the app.
+4. Start the published app.
+5. Test in Notepad:
+   - English Netherlands -> Korean + Hangul/native
+   - Korean -> English Netherlands
+6. Use Copy Diagnostics from the tray menu and inspect the copied report.
+7. Inspect `%LOCALAPPDATA%\InputFlow\inputflow.log`.
+
+## Validation Limitations
+
+Automated tests for Windows IME behavior are not currently known to exist in this repo.
+
+Manual Windows testing is required for changes to:
+
+- hotkey registration
+- workflow behavior against real installed profiles
+- input profile switching
+- Korean Hangul/native mode
+- foreground/elevated app handling
+- clipboard diagnostics from the tray process
+- runtime config/log path migration
+- single-instance startup behavior
