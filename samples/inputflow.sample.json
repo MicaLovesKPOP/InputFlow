@@ -10,7 +10,7 @@
       "Mode": "toggle",
       "Triggers": [
         {
-          "Keys": "Ctrl+Alt+Shift+K"
+          "Keys": "RightAlt"
         }
       ],
       "Target": "korean",
