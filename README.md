@@ -28,6 +28,14 @@ From the repository root:
 dotnet build .\InputFlow.App\InputFlow.App.csproj -c Release
 ```
 
+## Test
+
+Core config and workflow validation tests:
+
+```powershell
+dotnet run --project .\InputFlow.Core.Tests\InputFlow.Core.Tests.csproj -c Release
+```
+
 ## Publish
 
 Framework-dependent x64 publish:
@@ -60,16 +68,49 @@ A sample configuration is available at:
 samples/inputflow.sample.json
 ```
 
-Example hotkey configuration:
+Config version 2 uses `Workflows`. Existing version 1 configs with `Hotkeys` are migrated in memory when loaded, so existing working configs should continue to run.
+
+Example toggle workflow:
 
 ```json
 {
+  "Id": "korean-toggle",
   "Name": "Korean toggle",
-  "Keys": "Ctrl+Alt+Shift+K",
   "Mode": "toggle",
+  "Triggers": [
+    { "Keys": "RightAlt" }
+  ],
   "Target": "korean",
   "ReturnBehavior": "alwaysSpecificLayout",
   "Fallback": "us-intl"
+}
+```
+
+Example direct-switch workflow:
+
+```json
+{
+  "Id": "switch-korean",
+  "Name": "Switch to Korean",
+  "Mode": "switchTo",
+  "Triggers": [
+    { "Keys": "Ctrl+Alt+K" }
+  ],
+  "Target": "korean"
+}
+```
+
+Example cycle workflow:
+
+```json
+{
+  "Id": "writing-cycle",
+  "Name": "Writing cycle",
+  "Mode": "cycle",
+  "Triggers": [
+    { "Keys": "Ctrl+Shift+Space" }
+  ],
+  "Targets": ["us-intl", "korean", "japanese"]
 }
 ```
 
@@ -110,17 +151,17 @@ The current implementation sets Korean IME open/native conversion mode through W
 ## Project Structure
 
 ```text
-InputFlow.App      Tray app and user-facing startup
-InputFlow.Core     Config, matching, state machine, logging
-InputFlow.Windows  Win32/IME interop
-samples            Example configuration files
+InputFlow.App         Tray app and user-facing startup
+InputFlow.Core        Config, matching, state machine, logging
+InputFlow.Core.Tests  Package-free core validation tests
+InputFlow.Windows     Win32/IME interop
+samples               Example configuration files
 ```
 
 ## Known Limitations
 
-- The tray menu is still minimal.
 - There is no settings window yet.
-- Config reload may still need debounce/stabilization.
+- Hold-to-switch workflow mode is not implemented yet.
 - Some Windows language/input setups may require more exact TSF profile matching.
 - Elevated apps may not accept input-method changes from a non-elevated InputFlow process.
 - Hotkeys already used by Windows or another app cannot be registered.
