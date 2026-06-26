@@ -86,6 +86,21 @@ To validate path migration manually:
 5. Confirm `%LOCALAPPDATA%\InputFlow\inputflow.log` exists.
 6. Use tray `Open Config`, `Open Log`, and `Copy Diagnostics`; confirm they point to the per-user paths.
 
+## Single Instance Test
+
+Start `InputFlow.exe`, then start the same `InputFlow.exe` again from the same Windows session.
+
+Expected behavior:
+
+```text
+Only one InputFlow tray icon remains visible
+Only one InputFlow process remains running after the second launch exits
+Triggers still fire once per key press, not twice
+The original instance keeps using the same config and log paths
+```
+
+Exit InputFlow from the tray menu before repeating this test with another build.
+
 ## Manual Functional Test
 
 Use a simple non-elevated text input target such as Notepad.
@@ -218,36 +233,4 @@ Previously observed warnings included:
 
 ```text
 CS8625: Cannot convert null literal to non-nullable reference type.
-NETSDK1137: WindowsDesktop SDK no longer necessary.
-CS0108: ExitThread hides inherited member.
 ```
-
-These may already be fixed in the latest repo state, but verify with the primary build command.
-
-## Validation After Switching-Code Changes
-
-After any change touching input switching, profile matching, hotkeys, workflows, or IME mode:
-
-1. Run the primary build command.
-2. Run the core test command.
-3. Publish the app.
-4. Start the published app.
-5. Test in Notepad:
-   - English Netherlands -> Korean + Hangul/native
-   - Korean -> English Netherlands
-6. Use Copy Diagnostics from the tray menu and inspect the copied report.
-7. Inspect `%LOCALAPPDATA%\InputFlow\inputflow.log`.
-
-## Validation Limitations
-
-Automated tests for Windows IME behavior are not currently known to exist in this repo.
-
-Manual Windows testing is required for changes to:
-
-- hotkey registration
-- workflow behavior against real installed profiles
-- input profile switching
-- Korean Hangul/native mode
-- foreground/elevated app handling
-- clipboard diagnostics from the tray process
-- runtime config/log path migration
