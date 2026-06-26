@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using InputFlow.Windows;
 
 namespace InputFlow.Core
@@ -57,18 +58,43 @@ namespace InputFlow.Core
         }
 
         /// <summary>
-        /// Registers a hotkey with the manager. The <paramref name="id"/> must match the
-        /// identifier used when registering the hotkey with Windows. The specified
-        /// <paramref name="state"/> must contain a valid target profile; fallback may be null.
+        /// Registers a legacy toggle hotkey with the manager.
         /// </summary>
         public void RegisterHotkey(int id, InputProfile target, InputProfile? fallback, string returnBehavior, string? enterMode = null)
         {
+            RegisterWorkflow(
+                id,
+                "toggle",
+                new[] { target },
+                fallback,
+                returnBehavior,
+                CreateEnterModeMap(new[] { target }, enterMode));
+        }
+
+        /// <summary>
+        /// Registers a workflow with one or more target profiles.
+        /// </summary>
+        public void RegisterWorkflow(
+            int id,
+            string mode,
+            IReadOnlyList<InputProfile> targets,
+            InputProfile? fallback,
+            string returnBehavior,
+            IReadOnlyDictionary<string, string?> enterModesByKlid)
+        {
+            if (targets == null || targets.Count == 0)
+            {
+                _logger.Error($"Cannot register workflow hotkey ID {id}: no target profiles were provided.");
+                return;
+            }
+
             _hotkeyStates[id] = new HotkeyState
             {
-                Target = target,
+                Mode = ParseWorkflowMode(mode),
+                Targets = targets.ToList(),
                 Fallback = fallback,
                 ReturnBehavior = ParseReturnBehavior(returnBehavior),
-                EnterMode = enterMode
+                EnterModesByKlid = CopyEnterModeMap(enterModesByKlid)
             };
         }
 
@@ -85,7 +111,6 @@ namespace InputFlow.Core
                 return;
             }
 
-            // Determine the foreground process. If excluded, ignore.
             string foregroundProcess = GetForegroundProcessName();
             if (!string.IsNullOrEmpty(foregroundProcess) && _excludedProcessNames.Contains(foregroundProcess))
             {
@@ -101,58 +126,18 @@ namespace InputFlow.Core
 
             InputProfile current = GetCurrentProfile();
 
-            if (ProfilesEqual(current, state.Target))
+            switch (state.Mode)
             {
-                // We are currently in the target. Determine the destination based on return behaviour.
-                InputProfile? dest = null;
-                switch (state.ReturnBehavior)
-                {
-                    case ReturnBehavior.LastNonTarget:
-                        dest = state.PreviousNonTarget ?? state.Fallback;
-                        break;
-                    case ReturnBehavior.AlwaysSpecificLayout:
-                        dest = state.Fallback;
-                        if (dest == null && state.PreviousNonTarget != null)
-                        {
-                            dest = state.PreviousNonTarget;
-                            _logger.Warning("AlwaysSpecificLayout fallback was unavailable; returning to the remembered previous non-target profile.");
-                        }
-                        break;
-                    case ReturnBehavior.ManualOnly:
-                        // In manualOnly, we never automatically switch back. Do nothing.
-                        _logger.Info("ManualOnly return behaviour: not switching back.");
-                        return;
-                }
-                if (dest == null)
-                {
-                    _logger.Warning("No fallback or previous profile available; not switching.");
-                    return;
-                }
-                bool success = SwitchTo(dest);
-                if (success)
-                {
-                    _logger.Info($"Switched back to {dest.FriendlyName}");
-                    state.PreviousNonTarget = null;
-                }
-                else
-                {
-                    _logger.Error($"Failed to switch back to {dest.FriendlyName}");
-                }
-            }
-            else
-            {
-                // Not in target; remember current and switch to target.
-                state.PreviousNonTarget = current;
-                bool success = SwitchTo(state.Target);
-                if (success)
-                {
-                    ApplyEnterModeIfNeeded(state);
-                    _logger.Info($"Switched to target {state.Target.FriendlyName}");
-                }
-                else
-                {
-                    _logger.Error($"Failed to switch to target {state.Target.FriendlyName}");
-                }
+                case WorkflowMode.SwitchTo:
+                    SwitchToFirstTarget(state, "Switched to target");
+                    break;
+                case WorkflowMode.Cycle:
+                    CycleToNextTarget(state, current);
+                    break;
+                case WorkflowMode.Toggle:
+                default:
+                    ToggleTarget(state, current);
+                    break;
             }
         }
 
@@ -168,6 +153,109 @@ namespace InputFlow.Core
             {
                 IsPaused = paused;
                 _logger.Info(paused ? "InputFlow paused." : "InputFlow resumed.");
+            }
+        }
+
+        private void ToggleTarget(HotkeyState state, InputProfile current)
+        {
+            InputProfile target = state.Targets[0];
+
+            if (ProfilesEqual(current, target))
+            {
+                InputProfile? dest = null;
+                switch (state.ReturnBehavior)
+                {
+                    case ReturnBehavior.LastNonTarget:
+                        dest = state.PreviousNonTarget ?? state.Fallback;
+                        break;
+                    case ReturnBehavior.AlwaysSpecificLayout:
+                        dest = state.Fallback;
+                        if (dest == null && state.PreviousNonTarget != null)
+                        {
+                            dest = state.PreviousNonTarget;
+                            _logger.Warning("AlwaysSpecificLayout fallback was unavailable; returning to the remembered previous non-target profile.");
+                        }
+                        break;
+                    case ReturnBehavior.ManualOnly:
+                        _logger.Info("ManualOnly return behaviour: not switching back.");
+                        return;
+                }
+
+                if (dest == null)
+                {
+                    _logger.Warning("No fallback or previous profile available; not switching.");
+                    return;
+                }
+
+                bool success = SwitchTo(dest);
+                if (success)
+                {
+                    ApplyEnterModeIfNeeded(GetEnterModeForTarget(state, dest));
+                    _logger.Info($"Switched back to {dest.FriendlyName}");
+                    state.PreviousNonTarget = null;
+                }
+                else
+                {
+                    _logger.Error($"Failed to switch back to {dest.FriendlyName}");
+                }
+            }
+            else
+            {
+                state.PreviousNonTarget = current;
+                bool success = SwitchTo(target);
+                if (success)
+                {
+                    ApplyEnterModeIfNeeded(GetEnterModeForTarget(state, target));
+                    _logger.Info($"Switched to target {target.FriendlyName}");
+                }
+                else
+                {
+                    _logger.Error($"Failed to switch to target {target.FriendlyName}");
+                }
+            }
+        }
+
+        private void SwitchToFirstTarget(HotkeyState state, string successPrefix)
+        {
+            InputProfile target = state.Targets[0];
+            bool success = SwitchTo(target);
+            if (success)
+            {
+                ApplyEnterModeIfNeeded(GetEnterModeForTarget(state, target));
+                _logger.Info($"{successPrefix} {target.FriendlyName}");
+            }
+            else
+            {
+                _logger.Error($"Failed to switch to target {target.FriendlyName}");
+            }
+        }
+
+        private void CycleToNextTarget(HotkeyState state, InputProfile current)
+        {
+            if (state.Targets.Count == 0)
+            {
+                _logger.Warning("Cycle workflow has no target profiles; not switching.");
+                return;
+            }
+
+            int currentIndex = state.Targets.FindIndex(profile => ProfilesEqual(profile, current));
+            int nextIndex = currentIndex >= 0 ? (currentIndex + 1) % state.Targets.Count : 0;
+            InputProfile target = state.Targets[nextIndex];
+
+            if (currentIndex < 0)
+            {
+                state.PreviousNonTarget = current;
+            }
+
+            bool success = SwitchTo(target);
+            if (success)
+            {
+                ApplyEnterModeIfNeeded(GetEnterModeForTarget(state, target));
+                _logger.Info($"Cycled to target {target.FriendlyName}");
+            }
+            else
+            {
+                _logger.Error($"Failed to cycle to target {target.FriendlyName}");
             }
         }
 
@@ -192,9 +280,6 @@ namespace InputFlow.Core
             {
                 IntPtr foregroundWindow = InputApis.GetForegroundWindow();
 
-                // Important: use the exact HKL that Windows already reported as installed.
-                // Calling LoadKeyboardLayout with only a KLID can cause Windows to load/activate
-                // a different language/layout pair, such as plain English (United States) / US.
                 IntPtr hkl = profile.HKL;
 
                 _logger.Info($"Switch request: {profile.FriendlyName} KLID={profile.KLID} HKL=0x{profile.HKL.ToInt64():X8}");
@@ -226,7 +311,6 @@ namespace InputFlow.Core
                     return true;
                 }
 
-                // Retry once, safely.
                 if (foregroundWindow != IntPtr.Zero)
                 {
                     InputApis.PostMessage(foregroundWindow, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
@@ -255,18 +339,17 @@ namespace InputFlow.Core
                 return false;
             }
         }
+
         private InputProfile GetCurrentProfile()
         {
             uint threadId = InputApis.GetWindowThreadProcessId(InputApis.GetForegroundWindow(), out _);
             IntPtr currentHkl = InputApis.GetKeyboardLayout(threadId);
-            // Derive KLID from HKL by taking low word and converting to 8-digit hex.
             string klid = ((ulong)currentHkl.ToInt64() & 0xFFFFFFFF).ToString("X8");
             foreach (var profile in _installedProfiles)
             {
                 if (string.Equals(profile.KLID, klid, StringComparison.OrdinalIgnoreCase))
                     return profile;
             }
-            // Unknown profile; return a placeholder with minimal info.
             return new InputProfile(currentHkl, klid, klid, false);
         }
 
@@ -303,10 +386,13 @@ namespace InputFlow.Core
             }
         }
 
-        /// <summary>
-        /// Enumeration of supported return behaviours. More behaviours can be added
-        /// in future versions. See design document section 13 for semantics.
-        /// </summary>
+        private enum WorkflowMode
+        {
+            Toggle,
+            SwitchTo,
+            Cycle
+        }
+
         private enum ReturnBehavior
         {
             LastNonTarget,
@@ -314,22 +400,19 @@ namespace InputFlow.Core
             ManualOnly
         }
 
-        /// <summary>
-        /// Internal state for each hotkey. Stores the target profile, fallback,
-        /// previous non-target and return behaviour.
-        /// </summary>
         private class HotkeyState
         {
-            public InputProfile Target = null!;
+            public WorkflowMode Mode;
+            public List<InputProfile> Targets = new();
             public InputProfile? Fallback;
             public InputProfile? PreviousNonTarget;
             public ReturnBehavior ReturnBehavior;
-            public string? EnterMode;
+            public Dictionary<string, string?> EnterModesByKlid = new(StringComparer.OrdinalIgnoreCase);
         }
 
-        private void ApplyEnterModeIfNeeded(HotkeyState state)
+        private void ApplyEnterModeIfNeeded(string? enterMode)
         {
-            if (!string.Equals(state.EnterMode, "hangul", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(enterMode, "hangul", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -439,7 +522,6 @@ namespace InputFlow.Core
                 return false;
             }
 
-            // This sets IME open/native mode explicitly. It is not a Hangul-key toggle.
             IntPtr openBefore = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETOPENSTATUS, IntPtr.Zero);
             IntPtr conversionBefore = InputApis.SendMessage(imeWindow, InputApis.WM_IME_CONTROL, (IntPtr)InputApis.IMC_GETCONVERSIONMODE, IntPtr.Zero);
 
@@ -458,6 +540,50 @@ namespace InputFlow.Core
 
             return (conversionAfter.ToInt64() & InputApis.IME_CMODE_NATIVE) != 0;
         }
+
+        private static string? GetEnterModeForTarget(HotkeyState state, InputProfile target)
+        {
+            return state.EnterModesByKlid.TryGetValue(target.KLID, out string? enterMode) ? enterMode : null;
+        }
+
+        private static Dictionary<string, string?> CreateEnterModeMap(IEnumerable<InputProfile> targets, string? enterMode)
+        {
+            var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var target in targets)
+            {
+                result[target.KLID] = enterMode;
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, string?> CopyEnterModeMap(IReadOnlyDictionary<string, string?>? enterModes)
+        {
+            var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            if (enterModes == null)
+            {
+                return result;
+            }
+
+            foreach (var pair in enterModes)
+            {
+                result[pair.Key] = pair.Value;
+            }
+
+            return result;
+        }
+
+        private static WorkflowMode ParseWorkflowMode(string mode)
+        {
+            if (string.IsNullOrEmpty(mode)) return WorkflowMode.Toggle;
+            return mode.ToLowerInvariant() switch
+            {
+                "switchto" => WorkflowMode.SwitchTo,
+                "cycle" => WorkflowMode.Cycle,
+                _ => WorkflowMode.Toggle,
+            };
+        }
+
         private static ReturnBehavior ParseReturnBehavior(string behavior)
         {
             if (string.IsNullOrEmpty(behavior)) return ReturnBehavior.LastNonTarget;

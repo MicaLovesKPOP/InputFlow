@@ -22,9 +22,11 @@ namespace InputFlow.Core
             "Trace"
         };
 
-        private static readonly HashSet<string> SupportedModes = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> SupportedWorkflowModes = new(StringComparer.OrdinalIgnoreCase)
         {
-            "toggle"
+            "toggle",
+            "switchTo",
+            "cycle"
         };
 
         private static readonly HashSet<string> SupportedReturnBehaviors = new(StringComparer.OrdinalIgnoreCase)
@@ -43,9 +45,9 @@ namespace InputFlow.Core
         {
             var errors = new List<string>();
 
-            if (config.Version != 1)
+            if (config.Version != InputFlowConfig.CurrentVersion)
             {
-                errors.Add($"Unsupported config version '{config.Version}'. This build supports version 1.");
+                errors.Add($"Unsupported config version '{config.Version}'. This build supports version {InputFlowConfig.CurrentVersion}.");
             }
 
             if (!SupportedLogLevels.Contains(config.LogLevel ?? string.Empty))
@@ -54,7 +56,7 @@ namespace InputFlow.Core
             }
 
             ValidateProfiles(config.Profiles ?? new List<ProfileDefinition>(), errors);
-            ValidateHotkeys(config.Hotkeys ?? new List<HotkeyConfig>(), config.Profiles ?? new List<ProfileDefinition>(), errors);
+            ValidateWorkflows(config.Workflows ?? new List<WorkflowConfig>(), config.Profiles ?? new List<ProfileDefinition>(), errors);
             ValidateExcludedProcesses(config.ExcludedProcesses ?? new List<string>(), errors);
 
             return errors;
@@ -120,54 +122,130 @@ namespace InputFlow.Core
             }
         }
 
-        private static void ValidateHotkeys(IReadOnlyList<HotkeyConfig> hotkeys, IReadOnlyList<ProfileDefinition> profiles, List<string> errors)
+        private static void ValidateWorkflows(IReadOnlyList<WorkflowConfig> workflows, IReadOnlyList<ProfileDefinition> profiles, List<string> errors)
         {
             var profileIds = profiles
                 .Where(p => p != null && !string.IsNullOrWhiteSpace(p.Id))
                 .Select(p => p.Id.Trim())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < hotkeys.Count; i++)
+            for (int i = 0; i < workflows.Count; i++)
             {
-                var hotkey = hotkeys[i];
-                string label = $"Hotkeys[{i}]";
+                var workflow = workflows[i];
+                string label = $"Workflows[{i}]";
 
-                if (hotkey == null)
+                if (workflow == null)
                 {
                     errors.Add($"{label} must not be null.");
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(hotkey.Keys))
+                if (string.IsNullOrWhiteSpace(workflow.Id))
                 {
-                    errors.Add($"{label}.Keys is required.");
+                    errors.Add($"{label}.Id is required.");
+                }
+                else if (!seenIds.Add(workflow.Id.Trim()))
+                {
+                    errors.Add($"Workflow id '{workflow.Id}' is duplicated.");
                 }
 
-                string mode = string.IsNullOrWhiteSpace(hotkey.Mode) ? "toggle" : hotkey.Mode.Trim();
-                if (!SupportedModes.Contains(mode))
+                string mode = string.IsNullOrWhiteSpace(workflow.Mode) ? "toggle" : workflow.Mode.Trim();
+                if (!SupportedWorkflowModes.Contains(mode))
                 {
-                    errors.Add($"{label}.Mode '{hotkey.Mode}' is not supported by this build. Supported values: {string.Join(", ", SupportedModes)}.");
+                    errors.Add($"{label}.Mode '{workflow.Mode}' is not supported by this build. Supported values: {string.Join(", ", SupportedWorkflowModes)}.");
+                    continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(hotkey.Target))
+                ValidateWorkflowTriggers(workflow, label, errors);
+                ValidateWorkflowTargets(workflow, label, mode, profileIds, errors);
+                ValidateWorkflowReturnBehavior(workflow, label, mode, errors);
+
+                if (!string.IsNullOrWhiteSpace(workflow.Fallback) && !profileIds.Contains(workflow.Fallback.Trim()))
                 {
-                    errors.Add($"{label}.Target is required.");
+                    errors.Add($"{label}.Fallback references unknown profile '{workflow.Fallback}'.");
                 }
-                else if (!profileIds.Contains(hotkey.Target.Trim()))
+            }
+        }
+
+        private static void ValidateWorkflowTriggers(WorkflowConfig workflow, string label, List<string> errors)
+        {
+            if (workflow.Triggers == null || workflow.Triggers.Count == 0)
+            {
+                errors.Add($"{label}.Triggers must contain at least one trigger.");
+                return;
+            }
+
+            for (int i = 0; i < workflow.Triggers.Count; i++)
+            {
+                var trigger = workflow.Triggers[i];
+                if (trigger == null)
                 {
-                    errors.Add($"{label}.Target references unknown profile '{hotkey.Target}'.");
+                    errors.Add($"{label}.Triggers[{i}] must not be null.");
+                }
+                else if (string.IsNullOrWhiteSpace(trigger.Keys))
+                {
+                    errors.Add($"{label}.Triggers[{i}].Keys is required.");
+                }
+            }
+        }
+
+        private static void ValidateWorkflowTargets(WorkflowConfig workflow, string label, string mode, HashSet<string> profileIds, List<string> errors)
+        {
+            if (mode.Equals("cycle", StringComparison.OrdinalIgnoreCase))
+            {
+                if (workflow.Targets == null || workflow.Targets.Count < 2)
+                {
+                    errors.Add($"{label}.Targets must contain at least two profiles for cycle mode.");
+                    return;
                 }
 
-                string returnBehavior = string.IsNullOrWhiteSpace(hotkey.ReturnBehavior) ? "lastNonTarget" : hotkey.ReturnBehavior.Trim();
-                if (!SupportedReturnBehaviors.Contains(returnBehavior))
-                {
-                    errors.Add($"{label}.ReturnBehavior '{hotkey.ReturnBehavior}' is not supported. Supported values: {string.Join(", ", SupportedReturnBehaviors)}.");
-                }
+                ValidateTargetList(workflow.Targets, $"{label}.Targets", profileIds, errors);
+                return;
+            }
 
-                if (!string.IsNullOrWhiteSpace(hotkey.Fallback) && !profileIds.Contains(hotkey.Fallback.Trim()))
+            if (string.IsNullOrWhiteSpace(workflow.Target))
+            {
+                errors.Add($"{label}.Target is required for {mode} mode.");
+            }
+            else if (!profileIds.Contains(workflow.Target.Trim()))
+            {
+                errors.Add($"{label}.Target references unknown profile '{workflow.Target}'.");
+            }
+        }
+
+        private static void ValidateTargetList(IReadOnlyList<string> targets, string label, HashSet<string> profileIds, List<string> errors)
+        {
+            var seenTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                string target = targets[i];
+                if (string.IsNullOrWhiteSpace(target))
                 {
-                    errors.Add($"{label}.Fallback references unknown profile '{hotkey.Fallback}'.");
+                    errors.Add($"{label}[{i}] is required.");
                 }
+                else if (!profileIds.Contains(target.Trim()))
+                {
+                    errors.Add($"{label}[{i}] references unknown profile '{target}'.");
+                }
+                else if (!seenTargets.Add(target.Trim()))
+                {
+                    errors.Add($"{label}[{i}] duplicates profile '{target}'.");
+                }
+            }
+        }
+
+        private static void ValidateWorkflowReturnBehavior(WorkflowConfig workflow, string label, string mode, List<string> errors)
+        {
+            if (mode.Equals("cycle", StringComparison.OrdinalIgnoreCase) || mode.Equals("switchTo", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            string returnBehavior = string.IsNullOrWhiteSpace(workflow.ReturnBehavior) ? "lastNonTarget" : workflow.ReturnBehavior.Trim();
+            if (!SupportedReturnBehaviors.Contains(returnBehavior))
+            {
+                errors.Add($"{label}.ReturnBehavior '{workflow.ReturnBehavior}' is not supported. Supported values: {string.Join(", ", SupportedReturnBehaviors)}.");
             }
         }
 
