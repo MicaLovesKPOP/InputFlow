@@ -74,6 +74,12 @@ namespace InputFlow.Windows
         [DllImport("imm32.dll")]
         public static extern bool ImmSetConversionStatus(IntPtr hIMC, int conversion, int sentence);
 
+        [DllImport("imm32.dll")]
+        public static extern bool ImmGetOpenStatus(IntPtr hIMC);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmSetOpenStatus(IntPtr hIMC, bool open);
+
         public const uint WM_IME_CONTROL = 0x0283;
         public const int IMC_GETCONVERSIONMODE = 0x0001;
         public const int IMC_SETCONVERSIONMODE = 0x0002;
