@@ -297,10 +297,7 @@ namespace InputFlow.Core
                     return false;
                 }
 
-                if (foregroundWindow != IntPtr.Zero)
-                {
-                    InputApis.PostMessage(foregroundWindow, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
-                }
+                RequestInputLanguageChange(foregroundWindow, hkl);
 
                 InputApis.ActivateKeyboardLayout(hkl, InputApis.KLF_SETFORPROCESS);
                 System.Threading.Thread.Sleep(200);
@@ -312,10 +309,7 @@ namespace InputFlow.Core
                     return true;
                 }
 
-                if (foregroundWindow != IntPtr.Zero)
-                {
-                    InputApis.PostMessage(foregroundWindow, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
-                }
+                RequestInputLanguageChange(foregroundWindow, hkl);
 
                 InputApis.ActivateKeyboardLayout(hkl, InputApis.KLF_SETFORPROCESS);
                 System.Threading.Thread.Sleep(300);
@@ -338,6 +332,58 @@ namespace InputFlow.Core
             {
                 _logger.Error($"Exception during switch: {ex}");
                 return false;
+            }
+        }
+
+        private void RequestInputLanguageChange(IntPtr foregroundWindow, IntPtr hkl)
+        {
+            if (foregroundWindow == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var requestedWindows = new HashSet<IntPtr>();
+            uint threadId = InputApis.GetWindowThreadProcessId(foregroundWindow, out _);
+            var gui = new InputApis.GUITHREADINFO();
+            gui.cbSize = System.Runtime.InteropServices.Marshal.SizeOf<InputApis.GUITHREADINFO>();
+
+            if (InputApis.GetGUIThreadInfo(threadId, ref gui) && gui.hwndFocus != IntPtr.Zero)
+            {
+                RequestInputLanguageChangeForWindow(gui.hwndFocus, hkl, requestedWindows, "focused");
+            }
+
+            RequestInputLanguageChangeForWindow(foregroundWindow, hkl, requestedWindows, "foreground");
+        }
+
+        private void RequestInputLanguageChangeForWindow(IntPtr window, IntPtr hkl, HashSet<IntPtr> requestedWindows, string label)
+        {
+            if (window == IntPtr.Zero || !requestedWindows.Add(window))
+            {
+                return;
+            }
+
+            IntPtr sendResult = InputApis.SendMessageTimeout(
+                window,
+                InputApis.WM_INPUTLANGCHANGEREQUEST,
+                IntPtr.Zero,
+                hkl,
+                InputApis.SMTO_ABORTIFHUNG,
+                150,
+                out _);
+
+            if (sendResult != IntPtr.Zero)
+            {
+                _logger.Info($"Sent synchronous input-language change request to {label} window {FormatWindowHandle(window)}.");
+                return;
+            }
+
+            if (InputApis.PostMessage(window, InputApis.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl))
+            {
+                _logger.Warning($"Synchronous input-language change request to {label} window {FormatWindowHandle(window)} timed out or failed; posted async fallback.");
+            }
+            else
+            {
+                _logger.Warning($"Input-language change request to {label} window {FormatWindowHandle(window)} failed.");
             }
         }
 
