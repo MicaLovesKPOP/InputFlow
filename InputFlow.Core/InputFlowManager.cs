@@ -487,20 +487,33 @@ namespace InputFlow.Core
                     return false;
                 }
 
+                bool openBefore = InputApis.ImmGetOpenStatus(imc);
                 int desired = conversion | InputApis.IME_CMODE_NATIVE;
 
-                if (desired == conversion)
+                if (!openBefore && !InputApis.ImmSetOpenStatus(imc, true))
                 {
-                    _logger.Info($"Hangul/native conversion mode already active through IME context. Conversion={conversion}.");
+                    return false;
+                }
+
+                if (desired != conversion && !InputApis.ImmSetConversionStatus(imc, desired, sentence))
+                {
+                    return false;
+                }
+
+                bool openAfter = InputApis.ImmGetOpenStatus(imc);
+                if (!InputApis.ImmGetConversionStatus(imc, out int conversionAfter, out _))
+                {
+                    conversionAfter = desired;
+                }
+
+                bool nativeAfter = (conversionAfter & InputApis.IME_CMODE_NATIVE) != 0;
+                if (openAfter && nativeAfter)
+                {
+                    _logger.Info($"Applied Hangul/native mode through IME context. Open {openBefore} -> {openAfter}, conversion {conversion} -> {conversionAfter}.");
                     return true;
                 }
 
-                if (InputApis.ImmSetConversionStatus(imc, desired, sentence))
-                {
-                    _logger.Info($"Applied Hangul/native conversion mode through IME context: {conversion} -> {desired}.");
-                    return true;
-                }
-
+                _logger.Warning($"IME context Hangul/native attempt did not verify. Open {openBefore} -> {openAfter}, conversion {conversion} -> {conversionAfter}.");
                 return false;
             }
             finally

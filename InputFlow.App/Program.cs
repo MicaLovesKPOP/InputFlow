@@ -641,6 +641,8 @@ namespace InputFlow.App
 
         private sealed class SingleKeyTriggerHook : IDisposable
         {
+            private const int VkHangul = 0x15;
+
             private readonly ILogger _logger;
             private readonly Action<int> _triggerPressed;
             private readonly InputApis.LowLevelKeyboardProc _hookProc;
@@ -668,13 +670,27 @@ namespace InputFlow.App
                     return false;
                 }
 
+                bool addedHangulAlias = false;
+                if (vk == (int)Keys.RMenu)
+                {
+                    addedHangulAlias = _hotkeysByVk.TryAdd(VkHangul, id);
+                }
+
                 if (!EnsureInstalled())
                 {
                     _hotkeysByVk.Remove(vk);
+                    if (addedHangulAlias)
+                    {
+                        _hotkeysByVk.Remove(VkHangul);
+                    }
                     return false;
                 }
 
                 _logger.Warning($"Single-key trigger '{displayName}' is active and will suppress that key while InputFlow is running.");
+                if (addedHangulAlias)
+                {
+                    _logger.Info($"Single-key trigger '{displayName}' also listens for VK_HANGUL while Korean IME is active.");
+                }
                 return true;
             }
 
