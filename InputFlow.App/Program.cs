@@ -208,6 +208,7 @@ namespace InputFlow.App
                             () => OpenPath(_configPath, "config file"),
                             OpenAddProfile,
                             EditProfile,
+                            RemoveProfile,
                             OpenAddWorkflow,
                             EditWorkflow,
                             RemoveWorkflow);
@@ -362,6 +363,37 @@ namespace InputFlow.App
                 _logger.Info(successMessage);
                 ReloadConfig("setup status window");
                 RefreshSetupStatusWindow();
+            }
+
+            private void RemoveProfile(string profileId)
+            {
+                var references = FindProfileReferences(profileId, _config.Workflows);
+                if (references.Count > 0)
+                {
+                    string message = $"Profile '{profileId}' is still used by:{Environment.NewLine}{string.Join(Environment.NewLine, references.Select(reference => "- " + reference))}{Environment.NewLine}{Environment.NewLine}Remove or edit those workflows first.";
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        message,
+                        "InputFlow could not remove the profile",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var updated = CloneConfig(_config);
+                int removed = updated.Profiles.RemoveAll(profile => string.Equals(profile.Id, profileId, StringComparison.OrdinalIgnoreCase));
+                if (removed == 0)
+                {
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        $"Profile '{profileId}' was not found.",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                SaveProfileConfig(updated, $"Removed setup profile '{profileId}'.", "remove");
             }
 
             private void OpenAddWorkflow()
@@ -623,6 +655,27 @@ namespace InputFlow.App
             {
                 string json = JsonSerializer.Serialize(config);
                 return JsonSerializer.Deserialize<InputFlowConfig>(json) ?? new InputFlowConfig();
+            }
+
+            private static IReadOnlyList<string> FindProfileReferences(string profileId, IEnumerable<WorkflowConfig> workflows)
+            {
+                var references = new List<string>();
+                foreach (var workflow in workflows)
+                {
+                    string workflowName = GetWorkflowDisplayName(workflow);
+                    if (GetWorkflowTargetIds(workflow).Any(target => string.Equals(target, profileId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        references.Add($"{workflowName} target");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(workflow.Fallback) &&
+                        string.Equals(workflow.Fallback.Trim(), profileId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        references.Add($"{workflowName} fallback");
+                    }
+                }
+
+                return references;
             }
 
             private static string CreateUniqueWorkflowId(string name, IReadOnlyList<WorkflowConfig> existing)
