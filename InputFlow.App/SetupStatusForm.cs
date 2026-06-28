@@ -14,6 +14,7 @@ namespace InputFlow.App
         private readonly Action _openConfig;
         private readonly Action _addProfile;
         private readonly Action<string> _editProfile;
+        private readonly Action<string> _removeProfile;
         private readonly Action _addWorkflow;
         private readonly Action<string> _editWorkflow;
         private readonly Action<string> _removeWorkflow;
@@ -23,6 +24,7 @@ namespace InputFlow.App
             Action openConfig,
             Action addProfile,
             Action<string> editProfile,
+            Action<string> removeProfile,
             Action addWorkflow,
             Action<string> editWorkflow,
             Action<string> removeWorkflow)
@@ -31,14 +33,15 @@ namespace InputFlow.App
             _openConfig = openConfig;
             _addProfile = addProfile;
             _editProfile = editProfile;
+            _removeProfile = removeProfile;
             _addWorkflow = addWorkflow;
             _editWorkflow = editWorkflow;
             _removeWorkflow = removeWorkflow;
 
             Text = "InputFlow Setup Status";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new System.Drawing.Size(860, 560);
-            Size = new System.Drawing.Size(980, 680);
+            MinimumSize = new System.Drawing.Size(1080, 560);
+            Size = new System.Drawing.Size(1160, 680);
 
             var root = new TableLayoutPanel
             {
@@ -153,6 +156,9 @@ namespace InputFlow.App
             var editProfileButton = new Button { Text = "Edit Profile", Width = 110, Height = 30 };
             editProfileButton.Click += (_, _) => EditSelectedProfile();
 
+            var removeProfileButton = new Button { Text = "Remove Profile", Width = 125, Height = 30 };
+            removeProfileButton.Click += (_, _) => RemoveSelectedProfile();
+
             var addWorkflowButton = new Button { Text = "Add Workflow", Width = 120, Height = 30 };
             addWorkflowButton.Click += (_, _) => _addWorkflow();
 
@@ -167,6 +173,7 @@ namespace InputFlow.App
             panel.Controls.Add(configButton);
             panel.Controls.Add(addProfileButton);
             panel.Controls.Add(editProfileButton);
+            panel.Controls.Add(removeProfileButton);
             panel.Controls.Add(addWorkflowButton);
             panel.Controls.Add(editWorkflowButton);
             panel.Controls.Add(removeWorkflowButton);
@@ -175,20 +182,33 @@ namespace InputFlow.App
 
         private void EditSelectedProfile()
         {
-            if (_configuredProfilesList.SelectedItems.Count == 0)
+            string? profileId = GetSelectedProfileId();
+            if (profileId == null)
             {
-                MessageBox.Show(this, "Select a configured profile first.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            string? profileId = _configuredProfilesList.SelectedItems[0].Tag as string;
-            if (string.IsNullOrWhiteSpace(profileId))
-            {
-                MessageBox.Show(this, "The selected profile has no ID.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             _editProfile(profileId);
+        }
+
+        private void RemoveSelectedProfile()
+        {
+            string? profileId = GetSelectedProfileId();
+            if (profileId == null)
+            {
+                return;
+            }
+
+            var result = MessageBox.Show(
+                this,
+                $"Remove configured profile '{profileId}'?",
+                "InputFlow",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+            if (result == DialogResult.OK)
+            {
+                _removeProfile(profileId);
+            }
         }
 
         private void EditSelectedWorkflow()
@@ -220,6 +240,24 @@ namespace InputFlow.App
             {
                 _removeWorkflow(workflowId);
             }
+        }
+
+        private string? GetSelectedProfileId()
+        {
+            if (_configuredProfilesList.SelectedItems.Count == 0)
+            {
+                MessageBox.Show(this, "Select a configured profile first.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return null;
+            }
+
+            string? profileId = _configuredProfilesList.SelectedItems[0].Tag as string;
+            if (!string.IsNullOrWhiteSpace(profileId))
+            {
+                return profileId;
+            }
+
+            MessageBox.Show(this, "The selected profile has no ID.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
         }
 
         private string? GetSelectedWorkflowId()
