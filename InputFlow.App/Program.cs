@@ -172,6 +172,7 @@ namespace InputFlow.App
                 menu.Items.Add(new ToolStripMenuItem("Copy Diagnostics", null, (_, _) => CopyDiagnostics()));
                 menu.Items.Add(new ToolStripSeparator());
                 menu.Items.Add(new ToolStripMenuItem("Reload Config", null, (_, _) => ReloadConfig("tray menu")));
+                menu.Items.Add(new ToolStripMenuItem("Reset Setup", null, (_, _) => ResetSetupConfig()));
                 _startWithWindowsMenuItem = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleStartWithWindows());
                 menu.Items.Add(_startWithWindowsMenuItem);
                 _pauseMenuItem = new ToolStripMenuItem("Pause", null, (_, _) => TogglePause());
@@ -202,6 +203,76 @@ namespace InputFlow.App
                 {
                     _logger.Warning($"Cannot open {displayName} '{path}': {ex.Message}");
                 }
+            }
+
+            private void ResetSetupConfig()
+            {
+                string backupPath = CreateConfigBackupPath();
+                var result = MessageBox.Show(
+                    _setupStatusForm,
+                    $"Reset InputFlow to a fresh starter setup?{Environment.NewLine}{Environment.NewLine}Your current config will be backed up to:{Environment.NewLine}{backupPath}",
+                    "InputFlow reset setup",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Warning);
+                if (result != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (File.Exists(_configPath))
+                    {
+                        File.Copy(_configPath, backupPath, overwrite: false);
+                    }
+
+                    var starterConfig = InputFlowConfigFactory.CreateFirstRunConfig(InputProfileManager.EnumerateInstalledProfiles());
+                    var saveResult = InputFlowConfigWriter.SaveValidated(starterConfig, _configPath);
+                    if (!saveResult.Success)
+                    {
+                        string message = string.Join(Environment.NewLine, saveResult.Errors);
+                        _logger.Warning($"Setup reset failed: {message}");
+                        MessageBox.Show(
+                            _setupStatusForm,
+                            message,
+                            "InputFlow could not reset setup",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    _logger.Info(File.Exists(backupPath)
+                        ? $"Reset setup config. Backup saved to {backupPath}."
+                        : "Reset setup config. No existing config was present to back up.");
+                    ReloadConfig("setup reset");
+                    OpenSetupStatus();
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    _logger.Warning($"Setup reset failed: {ex.Message}");
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        ex.Message,
+                        "InputFlow could not reset setup",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+            }
+
+            private string CreateConfigBackupPath()
+            {
+                string directory = Path.GetDirectoryName(_configPath) ?? AppDomain.CurrentDomain.BaseDirectory;
+                string fileName = Path.GetFileName(_configPath);
+                string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+                string path = Path.Combine(directory, $"{fileName}.{timestamp}.bak");
+                int suffix = 2;
+                while (File.Exists(path))
+                {
+                    path = Path.Combine(directory, $"{fileName}.{timestamp}-{suffix}.bak");
+                    suffix++;
+                }
+
+                return path;
             }
 
             private void OpenSetupStatus()

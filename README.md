@@ -97,6 +97,7 @@ The tray menu includes:
 - Setup Status
 - Copy Diagnostics
 - Reload Config
+- Reset Setup
 - Start with Windows
 - Pause/Resume
 - Exit
@@ -104,6 +105,8 @@ The tray menu includes:
 `Setup Status` opens a window with configured profile health, installed profile options, and workflow readiness. It can add or remap configured profiles to installed Windows profiles, and add, edit, or remove toggle, direct-switch, cycle, and previous-profile workflows.
 
 `Copy Diagnostics` copies a text report with config summary, workflows, installed input profiles, setup profile options, configured-profile match results, and workflow readiness. This is the preferred information to paste into bug reports when a Windows layout or IME does not match as expected.
+
+`Reset Setup` backs up the current config to a timestamped `.bak` file, writes a fresh starter config from installed Windows input profiles, reloads InputFlow, and opens `Setup Status`.
 
 Configured profile reports include health states:
 
