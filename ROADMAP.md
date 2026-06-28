@@ -64,6 +64,7 @@ Already achieved:
 23. Setup Status can remove unused configured profiles and blocks removal when workflows still reference them.
 24. Tray menu can enable or disable Start with Windows for the current user.
 25. Previous-profile workflows can be configured and run without target profiles.
+26. Tray menu can reset setup by backing up the current config and writing a fresh inventory-backed starter config.
 
 Still missing for a finished product:
 
