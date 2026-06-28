@@ -134,7 +134,7 @@ samples/inputflow.sample.json
 
 Config version 2 uses `Workflows`. Existing version 1 configs with `Hotkeys` are migrated in memory when loaded, so existing working configs should continue to run.
 
-On a fresh install, InputFlow creates a starter config from the input profiles Windows reports as installed. That starter config defines profile entries but does not guess which workflow or trigger you want. Add a `Workflows` entry manually or start from `samples/inputflow.sample.json` until the settings UI is available.
+On a fresh install, InputFlow creates a starter config from the input profiles Windows reports as installed and opens `Setup Status`. That starter config defines profile entries but does not guess which workflow or trigger you want. Use `Setup Status` to add workflows, or edit JSON manually if you prefer.
 
 The sample Korean toggle uses `RightAlt`. When used as a single-key trigger, InputFlow suppresses that key while running, so it also replaces normal AltGr behavior for layouts that use AltGr. Choose a different trigger if you need AltGr for typing characters.
 
