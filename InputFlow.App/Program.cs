@@ -289,7 +289,9 @@ namespace InputFlow.App
                             RemoveProfile,
                             OpenAddWorkflow,
                             EditWorkflow,
-                            RemoveWorkflow);
+                            RemoveWorkflow,
+                            OpenAddExcludedProcess,
+                            RemoveExcludedProcess);
                         _setupStatusForm.FormClosed += (_, _) => _setupStatusForm = null;
                     }
 
@@ -645,6 +647,94 @@ namespace InputFlow.App
                 RefreshSetupStatusWindow();
             }
 
+            private void OpenAddExcludedProcess()
+            {
+                using var dialog = new ExcludedProcessDialog();
+                if (dialog.ShowDialog(_setupStatusForm) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                AddExcludedProcess(dialog.ProcessName);
+            }
+
+            private void AddExcludedProcess(string processName)
+            {
+                var updated = CloneConfig(_config);
+                string normalized = NormalizeProcessName(processName);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        "Process name is required.",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (updated.ExcludedProcesses.Any(process => string.Equals(process.Trim(), normalized, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        $"'{normalized}' is already excluded.",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                updated.ExcludedProcesses.Add(normalized);
+                SaveExcludedProcessesConfig(updated, $"Added excluded process '{normalized}'.", "add");
+            }
+
+            private void RemoveExcludedProcess(string processName)
+            {
+                var updated = CloneConfig(_config);
+                string normalized = NormalizeProcessName(processName);
+                int removed = updated.ExcludedProcesses.RemoveAll(process => string.Equals(process.Trim(), normalized, StringComparison.OrdinalIgnoreCase));
+                if (removed == 0)
+                {
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        $"Excluded process '{normalized}' was not found.",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                SaveExcludedProcessesConfig(updated, $"Removed excluded process '{normalized}'.", "remove");
+            }
+
+            private void SaveExcludedProcessesConfig(InputFlowConfig updated, string successMessage, string operation)
+            {
+                updated.ExcludedProcesses = updated.ExcludedProcesses
+                    .Where(process => !string.IsNullOrWhiteSpace(process))
+                    .Select(process => NormalizeProcessName(process))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(process => process, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var saveResult = InputFlowConfigWriter.SaveValidated(updated, _configPath);
+                if (!saveResult.Success)
+                {
+                    string message = string.Join(Environment.NewLine, saveResult.Errors);
+                    _logger.Warning($"Setup excluded process {operation} failed: {message}");
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        message,
+                        $"InputFlow could not {operation} the excluded process",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                _logger.Info(successMessage);
+                ReloadConfig("setup status window");
+                RefreshSetupStatusWindow();
+            }
+
             private void CopyDiagnostics()
             {
                 try
@@ -799,6 +889,28 @@ namespace InputFlow.App
             {
                 string json = JsonSerializer.Serialize(config);
                 return JsonSerializer.Deserialize<InputFlowConfig>(json) ?? new InputFlowConfig();
+            }
+
+            private static string NormalizeProcessName(string processName)
+            {
+                string process = (processName ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(process))
+                {
+                    return string.Empty;
+                }
+
+                process = Path.GetFileName(process);
+                if (string.IsNullOrWhiteSpace(process))
+                {
+                    return string.Empty;
+                }
+
+                if (!process.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    process += ".exe";
+                }
+
+                return process;
             }
 
             private static IReadOnlyList<string> FindProfileReferences(string profileId, IEnumerable<WorkflowConfig> workflows)

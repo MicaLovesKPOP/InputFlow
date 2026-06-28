@@ -12,16 +12,19 @@ namespace InputFlow.Core
         public InputFlowSetupModel(
             IReadOnlyList<SetupInstalledProfileOption> installedProfiles,
             IReadOnlyList<SetupConfiguredProfileOption> configuredProfiles,
-            IReadOnlyList<SetupWorkflowOption> workflows)
+            IReadOnlyList<SetupWorkflowOption> workflows,
+            IReadOnlyList<string> excludedProcesses)
         {
             InstalledProfiles = installedProfiles;
             ConfiguredProfiles = configuredProfiles;
             Workflows = workflows;
+            ExcludedProcesses = excludedProcesses;
         }
 
         public IReadOnlyList<SetupInstalledProfileOption> InstalledProfiles { get; }
         public IReadOnlyList<SetupConfiguredProfileOption> ConfiguredProfiles { get; }
         public IReadOnlyList<SetupWorkflowOption> Workflows { get; }
+        public IReadOnlyList<string> ExcludedProcesses { get; }
     }
 
     public sealed class SetupInstalledProfileOption
@@ -113,7 +116,18 @@ namespace InputFlow.Core
             return new InputFlowSetupModel(
                 BuildInstalledProfiles(installedProfiles, reports),
                 configuredProfiles,
-                BuildWorkflows(config.Workflows, configuredById));
+                BuildWorkflows(config.Workflows, configuredById),
+                BuildExcludedProcesses(config.ExcludedProcesses));
+        }
+
+        private static IReadOnlyList<string> BuildExcludedProcesses(IReadOnlyList<string> excludedProcesses)
+        {
+            return excludedProcesses
+                .Where(process => !string.IsNullOrWhiteSpace(process))
+                .Select(process => process.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(process => process, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static IReadOnlyList<SetupInstalledProfileOption> BuildInstalledProfiles(

@@ -65,6 +65,7 @@ Already achieved:
 24. Tray menu can enable or disable Start with Windows for the current user.
 25. Previous-profile workflows can be configured and run without target profiles.
 26. Tray menu can reset setup by backing up the current config and writing a fresh inventory-backed starter config.
+27. Setup Status can show, add, and remove excluded processes.
 
 Still missing for a finished product:
 

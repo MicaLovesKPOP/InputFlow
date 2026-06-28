@@ -32,6 +32,7 @@ var tests = new (string Name, Action Test)[]
     ("FirstRunConfigUsesInstalledProfiles", FirstRunConfigUsesInstalledProfiles),
     ("FirstRunConfigHandlesUnknownLanguageTags", FirstRunConfigHandlesUnknownLanguageTags),
     ("SetupModelIncludesProfileOptionsAndWorkflowReadiness", SetupModelIncludesProfileOptionsAndWorkflowReadiness),
+    ("SetupModelIncludesExcludedProcesses", SetupModelIncludesExcludedProcesses),
     ("SetupModelBlocksAmbiguousAndMissingProfiles", SetupModelBlocksAmbiguousAndMissingProfiles)
 };
 
@@ -512,6 +513,18 @@ static void SetupModelIncludesProfileOptionsAndWorkflowReadiness()
     AssertTrue(workflow.CanRegister, string.Join("; ", workflow.BlockingReasons));
     AssertEqual("korean", workflow.TargetProfileIds.Single(), "Workflow target should be reported.");
     AssertEqual("us-intl", workflow.FallbackProfileId, "Workflow fallback should be reported.");
+}
+
+static void SetupModelIncludesExcludedProcesses()
+{
+    var config = CreateKnownWorkingWorkflowConfig();
+    config.ExcludedProcesses = new List<string> { "vmconnect.exe", "mstsc.exe", "mstsc.exe", "" };
+
+    var model = InputFlowSetupModelBuilder.Build(config, CreateInstalledProfiles());
+
+    AssertEqual(2, model.ExcludedProcesses.Count, "Setup model should include normalized unique exclusions.");
+    AssertEqual("mstsc.exe", model.ExcludedProcesses[0], "Excluded processes should be sorted.");
+    AssertEqual("vmconnect.exe", model.ExcludedProcesses[1], "Excluded processes should be sorted.");
 }
 
 static void SetupModelBlocksAmbiguousAndMissingProfiles()
