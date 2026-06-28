@@ -102,7 +102,7 @@ The tray menu includes:
 - Pause/Resume
 - Exit
 
-`Setup Status` opens a window with configured profile health, installed profile options, and workflow readiness. It can add or remap configured profiles to installed Windows profiles, and add, edit, or remove toggle, direct-switch, cycle, and previous-profile workflows.
+`Setup Status` opens a window with configured profile health, installed profile options, workflow readiness, and excluded processes. It can add or remap configured profiles to installed Windows profiles, add, edit, or remove toggle, direct-switch, cycle, and previous-profile workflows, and add or remove process exclusions.
 
 `Copy Diagnostics` copies a text report with config summary, workflows, installed input profiles, setup profile options, configured-profile match results, and workflow readiness. This is the preferred information to paste into bug reports when a Windows layout or IME does not match as expected.
 
@@ -118,6 +118,8 @@ Configured profile reports include health states:
 Workflow readiness reports whether each configured workflow is ready or blocked. Blocked workflows include reasons such as missing triggers, missing targets where a target is required, ambiguous profile matches, or missing profile matches.
 
 Setup profile options show every Windows profile InputFlow can see and which configured profile IDs already point at it.
+
+Excluded processes are executable names where InputFlow ignores triggers, such as `mstsc.exe` or `vmconnect.exe`.
 
 ## Configuration
 

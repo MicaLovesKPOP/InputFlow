@@ -10,6 +10,7 @@ namespace InputFlow.App
         private readonly ListView _configuredProfilesList;
         private readonly ListView _installedProfilesList;
         private readonly ListView _workflowsList;
+        private readonly ListView _excludedProcessesList;
         private readonly Action _copyDiagnostics;
         private readonly Action _openConfig;
         private readonly Action _addProfile;
@@ -18,6 +19,8 @@ namespace InputFlow.App
         private readonly Action _addWorkflow;
         private readonly Action<string> _editWorkflow;
         private readonly Action<string> _removeWorkflow;
+        private readonly Action _addExcludedProcess;
+        private readonly Action<string> _removeExcludedProcess;
 
         public SetupStatusForm(
             Action copyDiagnostics,
@@ -27,7 +30,9 @@ namespace InputFlow.App
             Action<string> removeProfile,
             Action addWorkflow,
             Action<string> editWorkflow,
-            Action<string> removeWorkflow)
+            Action<string> removeWorkflow,
+            Action addExcludedProcess,
+            Action<string> removeExcludedProcess)
         {
             _copyDiagnostics = copyDiagnostics;
             _openConfig = openConfig;
@@ -37,6 +42,8 @@ namespace InputFlow.App
             _addWorkflow = addWorkflow;
             _editWorkflow = editWorkflow;
             _removeWorkflow = removeWorkflow;
+            _addExcludedProcess = addExcludedProcess;
+            _removeExcludedProcess = removeExcludedProcess;
 
             Text = "InputFlow Setup Status";
             StartPosition = FormStartPosition.CenterScreen;
@@ -47,22 +54,25 @@ namespace InputFlow.App
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 Padding = new Padding(12)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 31));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 31));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 27));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 27));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 12));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
             _configuredProfilesList = CreateListView("Profile ID", "Health", "Matched profile", "Enter mode", "Summary");
             _installedProfilesList = CreateListView("Installed profile", "Configured as");
             _workflowsList = CreateListView("Workflow", "ID", "Mode", "Status", "Triggers", "Targets", "Fallback", "Blocking reasons");
+            _excludedProcessesList = CreateListView("Process name");
 
             root.Controls.Add(CreateGroup("Configured profiles", _configuredProfilesList), 0, 0);
             root.Controls.Add(CreateGroup("Installed profile options", _installedProfilesList), 0, 1);
             root.Controls.Add(CreateGroup("Workflow readiness", _workflowsList), 0, 2);
-            root.Controls.Add(CreateButtonRow(), 0, 3);
+            root.Controls.Add(CreateExcludedProcessesGroup(), 0, 3);
+            root.Controls.Add(CreateButtonRow(), 0, 4);
 
             Controls.Add(root);
         }
@@ -72,6 +82,7 @@ namespace InputFlow.App
             _configuredProfilesList.BeginUpdate();
             _installedProfilesList.BeginUpdate();
             _workflowsList.BeginUpdate();
+            _excludedProcessesList.BeginUpdate();
             try
             {
                 _configuredProfilesList.Items.Clear();
@@ -120,15 +131,23 @@ namespace InputFlow.App
                     };
                     _workflowsList.Items.Add(item);
                 }
+
+                _excludedProcessesList.Items.Clear();
+                foreach (string process in model.ExcludedProcesses)
+                {
+                    _excludedProcessesList.Items.Add(new ListViewItem(new[] { process }) { Tag = process });
+                }
             }
             finally
             {
                 AutoResizeColumns(_configuredProfilesList);
                 AutoResizeColumns(_installedProfilesList);
                 AutoResizeColumns(_workflowsList);
+                AutoResizeColumns(_excludedProcessesList);
                 _configuredProfilesList.EndUpdate();
                 _installedProfilesList.EndUpdate();
                 _workflowsList.EndUpdate();
+                _excludedProcessesList.EndUpdate();
             }
         }
 
@@ -242,6 +261,33 @@ namespace InputFlow.App
             }
         }
 
+        private void RemoveSelectedExcludedProcess()
+        {
+            if (_excludedProcessesList.SelectedItems.Count == 0)
+            {
+                MessageBox.Show(this, "Select an excluded process first.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string? process = _excludedProcessesList.SelectedItems[0].Tag as string;
+            if (string.IsNullOrWhiteSpace(process))
+            {
+                MessageBox.Show(this, "The selected exclusion has no process name.", "InputFlow", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                this,
+                $"Remove exclusion '{process}'?",
+                "InputFlow",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+            if (result == DialogResult.OK)
+            {
+                _removeExcludedProcess(process);
+            }
+        }
+
         private string? GetSelectedProfileId()
         {
             if (_configuredProfilesList.SelectedItems.Count == 0)
@@ -288,6 +334,38 @@ namespace InputFlow.App
             };
             group.Controls.Add(content);
             return group;
+        }
+
+        private GroupBox CreateExcludedProcessesGroup()
+        {
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+
+            var buttons = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false
+            };
+
+            var addButton = new Button { Text = "Add", Width = 120, Height = 28 };
+            addButton.Click += (_, _) => _addExcludedProcess();
+
+            var removeButton = new Button { Text = "Remove", Width = 120, Height = 28 };
+            removeButton.Click += (_, _) => RemoveSelectedExcludedProcess();
+
+            buttons.Controls.Add(addButton);
+            buttons.Controls.Add(removeButton);
+            root.Controls.Add(_excludedProcessesList, 0, 0);
+            root.Controls.Add(buttons, 1, 0);
+
+            return CreateGroup("Excluded processes", root);
         }
 
         private static ListView CreateListView(params string[] columns)
