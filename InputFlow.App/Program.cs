@@ -49,15 +49,17 @@ namespace InputFlow.App
             string logPath = Path.Combine(logDirectory, "inputflow.log");
             string legacyConfigPath = Path.Combine(appDir, "inputflow.json");
             string? migratedLegacyConfigPath = TryMigrateLegacyConfig(configPath, legacyConfigPath);
+            bool createdFirstRunConfig = false;
 
             if (!File.Exists(configPath))
             {
                 var defaultConfig = InputFlowConfigFactory.CreateFirstRunConfig(InputProfileManager.EnumerateInstalledProfiles());
                 var opts = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
                 File.WriteAllText(configPath, System.Text.Json.JsonSerializer.Serialize(defaultConfig, opts));
+                createdFirstRunConfig = true;
             }
 
-            using var context = new TrayApplicationContext(configPath, logPath, migratedLegacyConfigPath);
+            using var context = new TrayApplicationContext(configPath, logPath, migratedLegacyConfigPath, createdFirstRunConfig);
             Application.Run(context);
         }
 
@@ -90,6 +92,7 @@ namespace InputFlow.App
             private readonly string _configPath;
             private readonly string _logPath;
             private readonly string? _migratedLegacyConfigPath;
+            private readonly bool _createdFirstRunConfig;
             private InputFlowConfig _config;
             private readonly ILogger _logger;
             private readonly InputFlowManager _manager;
@@ -105,11 +108,12 @@ namespace InputFlow.App
             private ToolStripMenuItem? _pauseMenuItem;
             private SetupStatusForm? _setupStatusForm;
 
-            public TrayApplicationContext(string configPath, string logPath, string? migratedLegacyConfigPath)
+            public TrayApplicationContext(string configPath, string logPath, string? migratedLegacyConfigPath, bool createdFirstRunConfig)
             {
                 _configPath = configPath;
                 _logPath = logPath;
                 _migratedLegacyConfigPath = migratedLegacyConfigPath;
+                _createdFirstRunConfig = createdFirstRunConfig;
                 _logger = new FileLogger(logPath);
 
                 _uiDispatcher = new Control();
@@ -152,6 +156,7 @@ namespace InputFlow.App
 
                 RegisterHotkeys();
                 SetupConfigWatcher();
+                OpenSetupStatusOnFirstRun();
             }
 
             private ContextMenuStrip BuildContextMenu()
@@ -216,6 +221,27 @@ namespace InputFlow.App
                 catch (Exception ex)
                 {
                     _logger.Warning($"Cannot open setup status window: {ex.Message}");
+                }
+            }
+
+            private void OpenSetupStatusOnFirstRun()
+            {
+                if (!_createdFirstRunConfig || _config.Workflows.Count > 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    _uiDispatcher.BeginInvoke((Action)(() =>
+                    {
+                        _logger.Info("Opening Setup Status for first-run configuration.");
+                        OpenSetupStatus();
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    _logger.Warning("Could not open Setup Status for first-run configuration because the UI dispatcher is not available.");
                 }
             }
 

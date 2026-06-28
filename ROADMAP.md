@@ -60,6 +60,7 @@ Already achieved:
 19. Setup Status can add, edit, and remove toggle, direct-switch, and cycle workflows through validated config saving.
 20. Trigger parsing is shared by config validation, runtime registration, and setup UI; single-key setup warns before saving.
 21. Setup Status can add configured profiles and remap existing profile IDs to installed Windows input profiles.
+22. Fresh installs open Setup Status after generating the inventory-backed starter config.
 
 Still missing for a finished product:
 
