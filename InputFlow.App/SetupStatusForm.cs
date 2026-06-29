@@ -47,8 +47,8 @@ namespace InputFlow.App
 
             Text = "InputFlow Setup Status";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new System.Drawing.Size(1080, 560);
-            Size = new System.Drawing.Size(1160, 680);
+            MinimumSize = new System.Drawing.Size(1080, 640);
+            Size = new System.Drawing.Size(1160, 720);
             KeyPreview = true;
             KeyDown += (_, e) =>
             {
@@ -66,10 +66,10 @@ namespace InputFlow.App
                 RowCount = 5,
                 Padding = new Padding(12)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 27));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 27));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 12));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 28));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 116));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
             _configuredProfilesList = CreateListView("Profile ID", "Health", "Matched profile", "Enter mode", "Summary");
