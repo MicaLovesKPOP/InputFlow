@@ -847,10 +847,22 @@ namespace InputFlow.App
                 {
                     Clipboard.SetText(InputFlowDiagnostics.BuildReport(_config, _installedProfiles, _configPath, _logPath));
                     _logger.Info("Copied diagnostics to clipboard.");
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        "InputFlow diagnostics were copied to the clipboard.",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
                     _logger.Warning($"Cannot copy diagnostics to clipboard: {ex.Message}");
+                    MessageBox.Show(
+                        _setupStatusForm,
+                        $"InputFlow could not copy diagnostics to the clipboard:{Environment.NewLine}{ex.Message}",
+                        "InputFlow",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
             }
 
