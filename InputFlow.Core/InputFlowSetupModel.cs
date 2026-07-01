@@ -222,6 +222,14 @@ namespace InputFlow.Core
                 AddProfileBlockingReason("Fallback", fallback, configuredById, blockingReasons);
             }
 
+            if (IsToggleWorkflow(workflow) &&
+                targets.Count == 1 &&
+                fallback != null &&
+                string.Equals(targets[0], fallback, StringComparison.OrdinalIgnoreCase))
+            {
+                blockingReasons.Add("Fallback profile must be different from the target profile.");
+            }
+
             return new SetupWorkflowOption(
                 string.IsNullOrWhiteSpace(workflow.Id) ? string.Empty : workflow.Id.Trim(),
                 GetWorkflowDisplayName(workflow),
@@ -321,6 +329,11 @@ namespace InputFlow.Core
         private static bool IsPreviousWorkflow(WorkflowConfig workflow)
         {
             return string.Equals(workflow.Mode, "previous", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsToggleWorkflow(WorkflowConfig workflow)
+        {
+            return string.IsNullOrWhiteSpace(workflow.Mode) || string.Equals(workflow.Mode, "toggle", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetWorkflowDisplayName(WorkflowConfig workflow)
