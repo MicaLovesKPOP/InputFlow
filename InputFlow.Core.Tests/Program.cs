@@ -11,6 +11,7 @@ var tests = new (string Name, Action Test)[]
     ("InvalidWorkflowProfileReferenceIsRejected", InvalidWorkflowProfileReferenceIsRejected),
     ("InvalidWorkflowTriggerIsRejected", InvalidWorkflowTriggerIsRejected),
     ("DuplicateWorkflowTriggerIsRejected", DuplicateWorkflowTriggerIsRejected),
+    ("ToggleWorkflowRejectsMatchingTargetAndFallback", ToggleWorkflowRejectsMatchingTargetAndFallback),
     ("TriggerParserRecognizesChordsAndSingleKeys", TriggerParserRecognizesChordsAndSingleKeys),
     ("CycleWorkflowRequiresTwoTargets", CycleWorkflowRequiresTwoTargets),
     ("ThreeProfileCycleConfigIsValid", ThreeProfileCycleConfigIsValid),
@@ -38,7 +39,8 @@ var tests = new (string Name, Action Test)[]
     ("SetupModelIncludesProfileOptionsAndWorkflowReadiness", SetupModelIncludesProfileOptionsAndWorkflowReadiness),
     ("SetupModelIncludesExcludedProcesses", SetupModelIncludesExcludedProcesses),
     ("SetupModelBlocksAmbiguousAndMissingProfiles", SetupModelBlocksAmbiguousAndMissingProfiles),
-    ("SetupModelBlocksDuplicateTriggers", SetupModelBlocksDuplicateTriggers)
+    ("SetupModelBlocksDuplicateTriggers", SetupModelBlocksDuplicateTriggers),
+    ("SetupModelBlocksMatchingToggleTargetAndFallback", SetupModelBlocksMatchingToggleTargetAndFallback)
 };
 
 int failed = 0;
@@ -144,6 +146,16 @@ static void DuplicateWorkflowTriggerIsRejected()
     var errors = InputFlowConfigValidator.Validate(config);
 
     AssertContains(errors, "duplicates trigger 'RightAlt'");
+}
+
+static void ToggleWorkflowRejectsMatchingTargetAndFallback()
+{
+    var config = CreateKnownWorkingWorkflowConfig();
+    config.Workflows[0].Fallback = "korean";
+
+    var errors = InputFlowConfigValidator.Validate(config);
+
+    AssertContains(errors, "Fallback must be different from Target for toggle mode");
 }
 
 static void TriggerParserRecognizesChordsAndSingleKeys()
@@ -652,6 +664,18 @@ static void SetupModelBlocksDuplicateTriggers()
     AssertTrue(
         model.Workflows.All(workflow => workflow.BlockingReasons.Contains("Trigger 'RightAlt' is configured more than once.")),
         "Both duplicate workflows should report the duplicate trigger.");
+}
+
+static void SetupModelBlocksMatchingToggleTargetAndFallback()
+{
+    var config = CreateKnownWorkingWorkflowConfig();
+    config.Workflows[0].Fallback = "korean";
+
+    var model = InputFlowSetupModelBuilder.Build(config, CreateInstalledProfiles());
+    var workflow = model.Workflows.Single();
+
+    AssertFalse(workflow.CanRegister, "Matching target and fallback should block the workflow.");
+    AssertContains(workflow.BlockingReasons, "Fallback profile must be different from the target profile.");
 }
 
 static InputFlowConfig CreateKnownWorkingWorkflowConfig()

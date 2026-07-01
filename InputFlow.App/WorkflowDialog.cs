@@ -232,6 +232,14 @@ namespace InputFlow.App
                 return;
             }
 
+            if (mode.Equals("toggle", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(target?.ProfileId) &&
+                string.Equals(target.ProfileId, fallback?.ProfileId, StringComparison.OrdinalIgnoreCase))
+            {
+                _errorLabel.Text = "Fallback profile must be different from the target profile.";
+                return;
+            }
+
             Draft = new WorkflowDraft
             {
                 Name = _nameTextBox.Text.Trim(),

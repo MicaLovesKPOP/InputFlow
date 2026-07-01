@@ -239,6 +239,14 @@ namespace InputFlow.Core
             {
                 errors.Add($"{label}.Target references unknown profile '{workflow.Target}'.");
             }
+
+            if (mode.Equals("toggle", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(workflow.Target) &&
+                !string.IsNullOrWhiteSpace(workflow.Fallback) &&
+                string.Equals(workflow.Target.Trim(), workflow.Fallback.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"{label}.Fallback must be different from Target for toggle mode.");
+            }
         }
 
         private static void ValidateTargetList(IReadOnlyList<string> targets, string label, HashSet<string> profileIds, List<string> errors)
