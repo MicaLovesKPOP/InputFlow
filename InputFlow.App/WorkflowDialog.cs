@@ -26,6 +26,7 @@ namespace InputFlow.App
         private readonly ComboBox _fallbackComboBox;
         private readonly ComboBox _returnBehaviorComboBox;
         private readonly CheckedListBox _cycleTargetsList;
+        private readonly Control _cycleTargetsControl;
         private readonly Label _targetLabel;
         private readonly Label _cycleTargetsLabel;
         private readonly Label _fallbackLabel;
@@ -102,6 +103,7 @@ namespace InputFlow.App
             {
                 _cycleTargetsList.Items.Add(profile);
             }
+            _cycleTargetsControl = CreateCycleTargetsControl();
 
             _targetLabel = CreateLabel("Target");
             _cycleTargetsLabel = CreateLabel("Cycle targets");
@@ -124,7 +126,7 @@ namespace InputFlow.App
             root.Controls.Add(_returnBehaviorLabel, 0, 5);
             root.Controls.Add(_returnBehaviorComboBox, 1, 5);
             root.Controls.Add(_cycleTargetsLabel, 0, 6);
-            root.Controls.Add(_cycleTargetsList, 1, 6);
+            root.Controls.Add(_cycleTargetsControl, 1, 6);
             root.Controls.Add(_errorLabel, 0, 7);
             root.SetColumnSpan(_errorLabel, 2);
             var buttonRow = CreateButtonRow();
@@ -266,7 +268,7 @@ namespace InputFlow.App
             _targetLabel.Visible = !isCycle && !isPrevious;
             _targetComboBox.Visible = !isCycle && !isPrevious;
             _cycleTargetsLabel.Visible = isCycle;
-            _cycleTargetsList.Visible = isCycle;
+            _cycleTargetsControl.Visible = isCycle;
             _fallbackLabel.Visible = isToggle;
             _fallbackComboBox.Visible = isToggle;
             _returnBehaviorLabel.Visible = isToggle;
@@ -402,6 +404,56 @@ namespace InputFlow.App
             }
 
             return combo;
+        }
+
+        private Control CreateCycleTargetsControl()
+        {
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+
+            var buttons = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                Padding = new Padding(6, 0, 0, 0)
+            };
+
+            var moveUpButton = new Button { Text = "Move Up", Width = 86, Height = 28, TabIndex = 7 };
+            moveUpButton.Click += (_, _) => MoveSelectedCycleTarget(-1);
+
+            var moveDownButton = new Button { Text = "Move Down", Width = 86, Height = 28, TabIndex = 8 };
+            moveDownButton.Click += (_, _) => MoveSelectedCycleTarget(1);
+
+            buttons.Controls.Add(moveUpButton);
+            buttons.Controls.Add(moveDownButton);
+
+            root.Controls.Add(_cycleTargetsList, 0, 0);
+            root.Controls.Add(buttons, 1, 0);
+            return root;
+        }
+
+        private void MoveSelectedCycleTarget(int direction)
+        {
+            int index = _cycleTargetsList.SelectedIndex;
+            int newIndex = index + direction;
+            if (index < 0 || newIndex < 0 || newIndex >= _cycleTargetsList.Items.Count)
+            {
+                return;
+            }
+
+            object item = _cycleTargetsList.Items[index];
+            bool isChecked = _cycleTargetsList.GetItemChecked(index);
+            _cycleTargetsList.Items.RemoveAt(index);
+            _cycleTargetsList.Items.Insert(newIndex, item);
+            _cycleTargetsList.SetItemChecked(newIndex, isChecked);
+            _cycleTargetsList.SelectedIndex = newIndex;
         }
 
         private static void AddRow(TableLayoutPanel root, int row, string label, Control input)
