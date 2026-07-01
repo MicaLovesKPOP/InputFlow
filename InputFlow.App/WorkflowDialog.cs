@@ -89,11 +89,13 @@ namespace InputFlow.App
                 Dock = DockStyle.Fill,
                 Text = "Ctrl+Shift+Space",
                 AccessibleName = "Triggers",
+                AccessibleDescription = "Enter one trigger per line. Examples include Ctrl+Shift+Space, F13, and RightAlt.",
                 TabIndex = 2,
                 Multiline = true,
                 AcceptsReturn = true,
                 ScrollBars = ScrollBars.Vertical
             };
+            var triggersControl = CreateTriggersControl();
             _modeHelpLabel = new Label
             {
                 Dock = DockStyle.Fill,
@@ -135,7 +137,7 @@ namespace InputFlow.App
             AddRow(root, 1, "Mode", modeControl);
             root.Controls.Add(_modeHelpLabel, 0, 2);
             root.SetColumnSpan(_modeHelpLabel, 2);
-            AddRow(root, 3, "Triggers", _triggersTextBox);
+            AddRow(root, 3, "Triggers", triggersControl);
             root.Controls.Add(_targetLabel, 0, 4);
             root.Controls.Add(_targetComboBox, 1, 4);
             root.Controls.Add(_fallbackLabel, 0, 5);
@@ -207,6 +209,31 @@ namespace InputFlow.App
             helpButton.Click += (_, _) => ShowModeHelp();
 
             root.Controls.Add(_modeComboBox, 0, 0);
+            root.Controls.Add(helpButton, 1, 0);
+            return root;
+        }
+
+        private Control CreateTriggersControl()
+        {
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42));
+
+            var helpButton = new Button
+            {
+                Text = "?",
+                Dock = DockStyle.Fill,
+                AccessibleName = "Trigger help",
+                TabIndex = 10
+            };
+            helpButton.Click += (_, _) => ShowTriggerHelp();
+
+            root.Controls.Add(_triggersTextBox, 0, 0);
             root.Controls.Add(helpButton, 1, 0);
             return root;
         }
@@ -336,6 +363,16 @@ namespace InputFlow.App
                 this,
                 "Toggle: switch to one target, then return using the selected return behavior.\n\nDirect switch: always switch to one target, with no automatic return.\n\nCycle: move through checked targets in list order. Use Move Up and Move Down to set the order.\n\nPrevious profile: jump back to the last profile InputFlow observed.",
                 "InputFlow workflow modes",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void ShowTriggerHelp()
+        {
+            MessageBox.Show(
+                this,
+                "Enter one trigger per line. InputFlow accepts chords such as Ctrl+Shift+Space, Ctrl+Alt+K, and Ctrl+Shift+F12.\n\nFunction keys F1 through F24 are supported, so F13 works if your keyboard, keyboard software, or another tool sends it.\n\nSingle-key triggers such as RightAlt, LeftAlt, RightCtrl, LeftCtrl, RightShift, and LeftShift are supported. InputFlow suppresses a single-key trigger while it is running, so choose one only if you are comfortable giving that key to InputFlow.",
+                "InputFlow trigger help",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
